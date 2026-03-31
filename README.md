@@ -27,14 +27,14 @@ No account, no cloud, no pairing ritual. The QR code encodes the iroh endpoint I
 
 ## Quick start — web version
 
-Deploy the `public/` directory to any static host. On [Netlify Drop](https://app.netlify.com/drop) it takes 30 seconds.
+The web app is automatically deployed to GitHub Pages on every release:
+**https://filirom1.github.io/barcode-keyboard/**
 
-Then:
-1. Open `https://your-site.netlify.app/receiver.html` on your PC
+1. Open the URL above on your PC — you get a QR code
 2. Scan the QR code with your phone
 3. Scan product barcodes — they appear on the PC and are copied to clipboard
 
-> The web receiver requires a browser with WebRTC support (Chrome, Firefox, Safari 16+). The phone scanner uses `getUserMedia` and `@undecaf/zbar-wasm`; no app install needed.
+> Requires a browser with WebRTC support (Chrome, Firefox, Safari 16+). The phone scanner uses `getUserMedia` and `@undecaf/zbar-wasm`; no app install needed.
 
 ## Quick start — desktop keyboard app
 
@@ -42,12 +42,12 @@ Download the pre-built binary for your platform from the [Releases](../../releas
 
 **Linux / WSL2:**
 ```sh
-./keyboard --terminal https://your-site.netlify.app
+./keyboard --terminal https://filirom1.github.io/barcode-keyboard
 ```
 
 **Windows:**
 ```
-keyboard.exe --terminal https://your-site.netlify.app
+keyboard.exe --terminal https://filirom1.github.io/barcode-keyboard
 ```
 
 The app prints a QR code in the terminal. Scan it with your phone, then scan any barcode — it gets typed into whatever window is focused on your PC, followed by Enter.
