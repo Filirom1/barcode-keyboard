@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Barcode Scanner</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #000; color: #fff;
+      font-family: system-ui, sans-serif;
+      height: 100dvh; display: flex; flex-direction: column; overflow: hidden;
+    }
+
+    /* ── Top status bar ───────────────────────────────────────────────── */
+    #topbar {
+      background: #0f172a; border-bottom: 1px solid #1e293b;
+      padding: 8px 14px; display: flex; align-items: center; gap: 8px;
+      font-size: 12px; color: #94a3b8; min-height: 38px; flex-shrink: 0;
+    }
+    #iroh-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #ca8a04; flex-shrink: 0; transition: background 0.4s;
+    }
+    #iroh-dot.ready  { background: #16a34a; }
+    #iroh-dot.error  { background: #dc2626; }
+    #iroh-dot.sending { background: #2563eb; }
+
+    /* ── Camera area ──────────────────────────────────────────────────── */
+    #wrap { position: relative; flex: 1; overflow: hidden; }
+    #video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    #overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+    /* Dark mask with hole */
+    #viewfinder {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -56%);
+      width: min(82vw, 340px); height: min(30vh, 150px);
+      border-radius: 6px; box-shadow: 0 0 0 9999px rgba(0,0,0,.55);
+      transition: box-shadow .2s;
+    }
+    #viewfinder.found {
+      box-shadow: 0 0 0 9999px rgba(0,0,0,.55), 0 0 0 3px #4ade80, 0 0 20px 4px rgba(74,222,128,.4);
+    }
+    #viewfinder::before, #viewfinder::after, #vf-b::before, #vf-b::after {
+      content: ''; position: absolute; width: 22px; height: 22px;
+      border-color: #4ade80; border-style: solid; border-width: 0;
+    }
+    #viewfinder::before { top:-2px; left:-2px;   border-top-width:3px;    border-left-width:3px;  border-top-left-radius:4px; }
+    #viewfinder::after  { top:-2px; right:-2px;  border-top-width:3px;    border-right-width:3px; border-top-right-radius:4px; }
+    #vf-b { position: absolute; inset: 0; }
+    #vf-b::before { bottom:-2px; left:-2px;  border-bottom-width:3px; border-left-width:3px;  border-bottom-left-radius:4px; }
+    #vf-b::after  { bottom:-2px; right:-2px; border-bottom-width:3px; border-right-width:3px; border-bottom-right-radius:4px; }
+
+    #scan-line {
+      position: absolute; left: 6px; right: 6px; height: 2px; border-radius: 1px;
+      background: linear-gradient(90deg, transparent 0%, rgba(74,222,128,.6) 20%, #4ade80 50%, rgba(74,222,128,.6) 80%, transparent 100%);
+      box-shadow: 0 0 6px 1px rgba(74,222,128,.7);
+      animation: sweep 2.4s ease-in-out infinite;
+    }
+    @keyframes sweep {
+      0%   { top: 4px; opacity: 1; }
+      48%  { top: calc(100% - 6px); opacity: 1; }
+      50%  { top: calc(100% - 6px); opacity: 0; }
+      52%  { top: 4px; opacity: 0; }
+      54%  { top: 4px; opacity: 1; }
+      100% { top: calc(100% - 6px); opacity: 1; }
+    }
+    #hint {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, calc(-56% + min(16vh, 80px)));
+      font-size: 12px; color: rgba(255,255,255,.5);
+      white-space: nowrap; pointer-events: none;
+    }
+
+    /* ── Result bar ───────────────────────────────────────────────────── */
+    #bar {
+      background: #0f172a; border-top: 1px solid #1e293b;
+      padding: 12px 18px; display: grid;
+      grid-template-columns: 10px 1fr; grid-template-rows: auto auto;
+      gap: 2px 10px; min-height: 72px; align-items: center; flex-shrink: 0;
+    }
+    #status-dot {
+      grid-row: 1/3; width: 10px; height: 10px; border-radius: 50%;
+      background: #dc2626; transition: background .4s;
+    }
+    #status-dot.ok   { background: #16a34a; }
+    #status-dot.warn { background: #ca8a04; }
+    #status-dot.send { background: #2563eb; }
+    #last-code { font-size: 22px; font-weight: 800; color: #4ade80; word-break: break-all; }
+    #last-meta { font-size: 11px; color: #475569; }
+  </style>
+</head>
+<body>
+
+<div id="topbar">
+  <div id="iroh-dot"></div>
+  <span id="iroh-status">Loading iroh…</span>
+</div>
+
+<div id="wrap">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="overlay"></canvas>
+  <div id="viewfinder"><div id="vf-b"></div><div id="scan-line"></div></div>
+  <div id="hint">Align barcode within the frame</div>
+</div>
+
+<div id="bar">
+  <div id="status-dot"></div>
+  <div id="last-code">–</div>
+  <div id="last-meta">Starting…</div>
+</div>
+
+<script type="module">
+import * as zbarWasm from 'https://cdn.jsdelivr.net/npm/@undecaf/zbar-wasm/dist/main.js'
+import init, { EchoNode } from "./wasm/barcode_keyboard.js";
+
+// ── DOM ──────────────────────────────────────────────────────────────────────
+const video      = document.getElementById('video')
+const overlay    = document.getElementById('overlay')
+const vfEl       = document.getElementById('viewfinder')
+const dot        = document.getElementById('status-dot')
+const lastCode   = document.getElementById('last-code')
+const lastMeta   = document.getElementById('last-meta')
+const ctx        = overlay.getContext('2d')
+const irohDot    = document.getElementById('iroh-dot')
+const irohStatus = document.getElementById('iroh-status')
+const wrap       = document.getElementById('wrap')
+
+// ── URL params ───────────────────────────────────────────────────────────────
+const pcEndpoint = new URLSearchParams(location.search).get('endpoint')
+if (!pcEndpoint) {
+  irohStatus.textContent = 'Error: missing ?endpoint= in URL'
+  irohDot.className = 'error'
+}
+
+// ── iroh ─────────────────────────────────────────────────────────────────────
+irohStatus.textContent = 'Loading WASM…'
+await init()
+irohStatus.textContent = 'Starting iroh node…'
+
+let node = null
+try {
+  node = await EchoNode.spawn()
+  irohDot.className = 'ready'
+  irohStatus.textContent = pcEndpoint ? 'Ready' : 'No endpoint in URL'
+} catch (err) {
+  irohDot.className = 'error'
+  irohStatus.textContent = 'iroh error: ' + err.message
+}
+
+// ── zbar ─────────────────────────────────────────────────────────────────────
+const scanner = await zbarWasm.getDefaultScanner()
+scanner.setConfig(zbarWasm.ZBarSymbolType.ZBAR_NONE,    zbarWasm.ZBarConfigType.ZBAR_CFG_ENABLE, 0)
+scanner.setConfig(zbarWasm.ZBarSymbolType.ZBAR_EAN13,   zbarWasm.ZBarConfigType.ZBAR_CFG_ENABLE, 1)
+scanner.setConfig(zbarWasm.ZBarSymbolType.ZBAR_EAN8,    zbarWasm.ZBarConfigType.ZBAR_CFG_ENABLE, 1)
+scanner.setConfig(zbarWasm.ZBarSymbolType.ZBAR_UPCA,    zbarWasm.ZBarConfigType.ZBAR_CFG_ENABLE, 1)
+scanner.setConfig(zbarWasm.ZBarSymbolType.ZBAR_CODE39,  zbarWasm.ZBarConfigType.ZBAR_CFG_ENABLE, 1)
+scanner.setConfig(zbarWasm.ZBarSymbolType.ZBAR_CODE128, zbarWasm.ZBarConfigType.ZBAR_CFG_ENABLE, 1)
+scanner.setConfig(zbarWasm.ZBarSymbolType.ZBAR_QRCODE,  zbarWasm.ZBarConfigType.ZBAR_CFG_ENABLE, 0)
+
+const TYPE_LABELS = {
+  ZBAR_EAN13: 'EAN-13', ZBAR_EAN8: 'EAN-8', ZBAR_UPCA: 'UPC-A', ZBAR_UPCE: 'UPC-E',
+  ZBAR_CODE39: 'Code 39', ZBAR_CODE128: 'Code 128',
+}
+const fmtType = t => TYPE_LABELS[t] ?? t.replace('ZBAR_', '')
+
+// ── Camera ───────────────────────────────────────────────────────────────────
+function setStatus(cls, text) { dot.className = cls; lastMeta.textContent = text }
+
+try {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+  })
+  video.srcObject = stream
+  await video.play()
+  setStatus('ok', 'Point camera at a barcode')
+} catch (e) {
+  setStatus('warn', 'Camera error: ' + e.message)
+}
+
+let tapped = false
+document.addEventListener('touchstart', () => { tapped = true }, { once: true })
+document.addEventListener('click',      () => { tapped = true }, { once: true })
+
+// ── Off-screen canvas ────────────────────────────────────────────────────────
+const zbarCanvas = document.createElement('canvas')
+const zbarCtx    = zbarCanvas.getContext('2d', { willReadFrequently: true })
+
+// ── Coordinate helpers ────────────────────────────────────────────────────────
+function coverTransform() {
+  const vw = video.videoWidth, vh = video.videoHeight
+  const cw = wrap.clientWidth, ch = wrap.clientHeight
+  const scale = Math.max(cw / vw, ch / vh)
+  return { scale, offsetX: (cw - vw * scale) / 2, offsetY: (ch - vh * scale) / 2 }
+}
+function videoToDisplay(x, y, t) { return { x: x * t.scale + t.offsetX, y: y * t.scale + t.offsetY } }
+function viewfinderInVideo(t) {
+  const vfRect = vfEl.getBoundingClientRect(), wrapRect = wrap.getBoundingClientRect()
+  const dx = vfRect.left - wrapRect.left, dy = vfRect.top - wrapRect.top
+  return {
+    x: Math.max(0, Math.round((dx - t.offsetX) / t.scale)),
+    y: Math.max(0, Math.round((dy - t.offsetY) / t.scale)),
+    w: Math.round(vfRect.width / t.scale),
+    h: Math.round(vfRect.height / t.scale),
+  }
+}
+
+// ── Draw bounding box ────────────────────────────────────────────────────────
+function drawBox(pts, label, alpha) {
+  if (!pts?.length) return
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y)
+  const xMin = Math.min(...xs), xMax = Math.max(...xs)
+  const yMin = Math.min(...ys), yMax = Math.max(...ys)
+  const PAD = pts.length < 4 ? 10 : 0
+  const rect = [
+    { x: xMin-PAD, y: yMin-PAD }, { x: xMax+PAD, y: yMin-PAD },
+    { x: xMax+PAD, y: yMax+PAD }, { x: xMin-PAD, y: yMax+PAD },
+  ]
+  ctx.save(); ctx.globalAlpha = alpha
+  ctx.beginPath()
+  rect.forEach(({x, y}, i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))
+  ctx.closePath()
+  ctx.fillStyle = 'rgba(74,222,128,0.18)'; ctx.fill()
+  ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 2.5; ctx.lineJoin = 'round'; ctx.stroke()
+  if (label) {
+    ctx.font = 'bold 13px system-ui'
+    const tw = ctx.measureText(label).width
+    const lx = rect[0].x, ly = rect[0].y - 6
+    ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.beginPath()
+    ctx.roundRect(lx-2, ly-18, tw+12, 22, 4); ctx.fill()
+    ctx.fillStyle = '#4ade80'; ctx.fillText(label, lx+4, ly-2)
+  }
+  ctx.restore()
+}
+
+// ── Fade system ───────────────────────────────────────────────────────────────
+let pending = [], fadeAlpha = 0, fadeTimer = null
+function startFade() {
+  clearTimeout(fadeTimer); fadeAlpha = 1
+  const step = () => {
+    if (fadeAlpha <= 0) { pending = []; return }
+    fadeAlpha = Math.max(0, fadeAlpha - 0.05); redraw()
+    fadeTimer = setTimeout(step, 60)
+  }
+  fadeTimer = setTimeout(step, 500)
+}
+function redraw() {
+  overlay.width = wrap.clientWidth; overlay.height = wrap.clientHeight
+  pending.forEach(s => drawBox(s.pts, s.label, fadeAlpha))
+}
+
+// ── Send via iroh ─────────────────────────────────────────────────────────────
+let sending = false
+async function sendBarcode(code) {
+  if (!node || !pcEndpoint || sending) return
+  sending = true
+  irohDot.className = 'sending'; irohStatus.textContent = 'Sending…'
+  try {
+    const stream = node.connect(pcEndpoint, code)
+    for await (const event of stream) {
+      if (event.type === 'closed') break
+    }
+    irohDot.className = 'ready'; irohStatus.textContent = '✓ ' + code
+  } catch (err) {
+    irohDot.className = 'error'; irohStatus.textContent = 'Error: ' + err.message
+    setTimeout(() => { irohDot.className = 'ready'; irohStatus.textContent = 'Ready' }, 3000)
+  }
+  sending = false
+}
+
+// ── Scan loop ─────────────────────────────────────────────────────────────────
+let prevCode = '', prevAt = 0, scanning = false
+async function tick() {
+  if (!scanning && video.readyState === HTMLMediaElement.HAVE_ENOUGH_DATA) {
+    scanning = true
+    zbarCanvas.width = video.videoWidth; zbarCanvas.height = video.videoHeight
+    zbarCtx.drawImage(video, 0, 0)
+
+    const t = coverTransform(), vfV = viewfinderInVideo(t)
+    vfV.w = Math.min(vfV.w, zbarCanvas.width  - vfV.x)
+    vfV.h = Math.min(vfV.h, zbarCanvas.height - vfV.y)
+
+    if (vfV.w > 10 && vfV.h > 10) {
+      const imgData = zbarCtx.getImageData(vfV.x, vfV.y, vfV.w, vfV.h)
+      const symbols = await zbarWasm.scanImageData(imgData, scanner)
+
+      if (symbols.length > 0) {
+        pending = symbols.map(sym => ({
+          pts:   sym.points.map(p => videoToDisplay(p.x + vfV.x, p.y + vfV.y, t)),
+          label: `${sym.decode()}  [${fmtType(sym.typeName)}]`
+        }))
+        fadeAlpha = 1; clearTimeout(fadeTimer); redraw(); startFade()
+        vfEl.classList.add('found')
+
+        for (const sym of symbols) {
+          const code = sym.decode(), now = Date.now()
+          if (code === prevCode && now - prevAt < 5000) continue
+          prevCode = code; prevAt = now
+
+          lastCode.textContent = code
+          lastMeta.textContent = `${fmtType(sym.typeName)}  ·  ${new Date().toLocaleTimeString()}`
+          setStatus('send', 'Sending…')
+          if (tapped) navigator.vibrate?.(55)
+          sendBarcode(code)
+        }
+      } else {
+        vfEl.classList.remove('found')
+      }
+    }
+    scanning = false
+  }
+  requestAnimationFrame(tick)
+}
+
+requestAnimationFrame(tick)
+new ResizeObserver(redraw).observe(wrap)
+</script>
+</body>
+</html>

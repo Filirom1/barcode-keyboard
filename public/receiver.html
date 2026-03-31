@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Barcode Receiver</title>
+  <script src="./qr-creator.min.js"></script>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0f172a; color: #f1f5f9;
+      font-family: system-ui, -apple-system, sans-serif;
+      min-height: 100dvh;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 2rem 1rem; gap: 1.5rem;
+    }
+    h1 { font-size: 1.4rem; color: #4ade80; letter-spacing: -0.02em; }
+
+    #status {
+      color: #94a3b8; font-size: 0.9rem;
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .spinner {
+      width: 14px; height: 14px; flex-shrink: 0;
+      border: 2px solid #4ade80; border-top-color: transparent;
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #qr-section { display: none; flex-direction: column; align-items: center; gap: 0.75rem; }
+    #qr-wrap { background: #fff; border-radius: 12px; padding: 14px; box-shadow: 0 0 0 4px rgba(74,222,128,0.15); }
+    #qr-hint { font-size: 0.75rem; color: #64748b; text-align: center; }
+    #qr-url {
+      font-size: 0.7rem; color: #4ade80; word-break: break-all;
+      max-width: 280px; text-align: center; opacity: 0.7;
+    }
+    #qr-url:hover { opacity: 1; }
+
+    #barcodes-section { width: 100%; max-width: 560px; display: none; }
+    h2 { font-size: 0.95rem; color: #4ade80; margin-bottom: 0.6rem; }
+    #barcodes {
+      background: #1e293b; border-radius: 8px;
+      min-height: 160px; max-height: 420px; overflow-y: auto;
+      font-family: 'Courier New', monospace;
+    }
+    .bc-entry {
+      padding: 0.55rem 1rem; border-bottom: 1px solid #334155;
+      display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+    }
+    .bc-entry:last-child { border-bottom: none; }
+    .bc-value { font-size: 1.05rem; color: #4ade80; font-weight: 700; word-break: break-all; }
+    .bc-time { font-size: 0.7rem; color: #64748b; white-space: nowrap; flex-shrink: 0; }
+    .bc-entry.flash { animation: rowflash 0.6s ease-out; }
+    @keyframes rowflash { from { background: #14532d; } to { background: transparent; } }
+    #empty { color: #475569; padding: 1rem; text-align: center; font-size: 0.9rem; }
+    #copy-notice { min-height: 1.2rem; font-size: 0.78rem; color: #4ade80; text-align: center; }
+  </style>
+</head>
+<body>
+  <h1>Barcode Receiver</h1>
+  <div id="status"><span class="spinner"></span><span id="status-text">Loading…</span></div>
+
+  <div id="qr-section">
+    <div id="qr-wrap"><canvas id="qr-canvas"></canvas></div>
+    <div id="qr-hint">Scan with your phone to open the scanner</div>
+    <a id="qr-url" href="#" target="_blank"></a>
+  </div>
+
+  <div id="barcodes-section">
+    <h2>Received barcodes</h2>
+    <div id="barcodes"><div id="empty">Waiting for scans…</div></div>
+    <div id="copy-notice"></div>
+  </div>
+
+  <script type="module">
+    import init, { EchoNode } from "./wasm/barcode_keyboard.js";
+
+    const statusDot  = document.querySelector('.spinner');
+    const statusText = document.getElementById('status-text');
+    const qrSection  = document.getElementById('qr-section');
+    const bcSection  = document.getElementById('barcodes-section');
+    const barcodesEl = document.getElementById('barcodes');
+    const copyNotice = document.getElementById('copy-notice');
+    let emptyEl = document.getElementById('empty');
+
+    function setStatus(text, done = false) {
+      statusText.textContent = text;
+      if (done) statusDot.style.display = 'none';
+    }
+
+    setStatus('Loading WASM…');
+    await init();
+    setStatus('Starting iroh node…');
+    const node = await EchoNode.spawn();
+    const endpointId = node.endpoint_id();
+
+    const scannerUrl = new URL('./scanner.html', location.href);
+    scannerUrl.searchParams.set('endpoint', endpointId);
+
+    QrCreator.render(
+      { text: scannerUrl.toString(), radius: 0, ecLevel: 'H', fill: '#000', background: '#fff', size: 240 },
+      document.getElementById('qr-canvas')
+    );
+    const qrUrlEl = document.getElementById('qr-url');
+    qrUrlEl.href = scannerUrl.toString();
+    qrUrlEl.textContent = scannerUrl.toString();
+    qrSection.style.display = 'flex';
+    bcSection.style.display = 'block';
+    setStatus('Ready — scan the QR code with your phone', true);
+
+    for await (const event of node.events()) {
+      if (event.type !== 'received') continue;
+      const content = event.content;
+
+      if (emptyEl) { emptyEl.remove(); emptyEl = null; }
+
+      const entry = document.createElement('div');
+      entry.className = 'bc-entry flash';
+      const val = document.createElement('span');
+      val.className = 'bc-value';
+      val.textContent = content;
+      const ts = document.createElement('span');
+      ts.className = 'bc-time';
+      ts.textContent = new Date().toLocaleTimeString();
+      entry.append(val, ts);
+      barcodesEl.insertBefore(entry, barcodesEl.firstChild);
+
+      try {
+        await navigator.clipboard.writeText(content + '\n');
+        copyNotice.textContent = `Copied: ${content}`;
+        setTimeout(() => { copyNotice.textContent = ''; }, 2000);
+      } catch { /* clipboard blocked */ }
+    }
+  </script>
+</body>
+</html>

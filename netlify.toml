@@ -1,0 +1,11 @@
+[build]
+  publish = "public"
+  # WASM is pre-built and committed to public/wasm/ — no build command needed.
+  # To rebuild: see README.md or the GitHub Actions workflow.
+  command = ""
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cross-Origin-Opener-Policy = "same-origin"
+    Cross-Origin-Embedder-Policy = "require-corp"
