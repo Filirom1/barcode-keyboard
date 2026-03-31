@@ -20,9 +20,11 @@ required-features = ["keyboard"]
 anyhow = "1.0.86"
 async-channel = "2.3.1"
 clap = { version = "4.5.30", features = ["derive"], optional = true }
+dirs = { version = "5", optional = true }
 eframe = { version = "0.30", optional = true }
 enigo = { version = "0.2", optional = true }
 qrcode = { version = "0.14", optional = true }
+sys-locale = { version = "0.3", optional = true }
 console_error_panic_hook = "0.1.7"
 getrandom = { version = "0.3", features = ["wasm_js"] }
 iroh = { version = "0.97", default-features = false }
@@ -40,7 +42,7 @@ wasm-streams = "0.4.2"
 
 [features]
 cli = ["tokio/full", "dep:clap"]
-keyboard = ["tokio/full", "dep:eframe", "dep:enigo", "dep:qrcode"]
+keyboard = ["tokio/full", "dep:eframe", "dep:enigo", "dep:qrcode", "dep:sys-locale", "dep:dirs"]
 
 [profile.release]
 codegen-units = 1
