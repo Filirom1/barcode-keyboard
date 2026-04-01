@@ -141,4 +141,4 @@ The iroh protocol uses ALPN `b"iroh/example-browser-echo/0"`. Both sides speak t
 
 ## License
 
-Apache-2.0 OR MIT
+MIT
