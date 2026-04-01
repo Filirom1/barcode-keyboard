@@ -648,19 +648,17 @@ impl eframe::App for App {
             ui.separator();
             ui.add_space(4.0);
 
-            // History header — buttons allocated first (right side) so they are never clipped
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.small_button(lang.clear).clicked() {
-                    self.history.clear();
-                }
+            // History header
+            ui.horizontal(|ui| {
                 if ui.small_button(lang.copy_all).clicked() {
                     let all = self.history.iter().rev()
                         .cloned().collect::<Vec<_>>().join("\n");
                     ui.output_mut(|o| o.copied_text = all);
                 }
-                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                    ui.label(format!("{}: {}", lang.received, self.history.len()));
-                });
+                if ui.small_button(lang.clear).clicked() {
+                    self.history.clear();
+                }
+                ui.label(format!("{}: {}", lang.received, self.history.len()));
             });
             ui.add_space(4.0);
 
