@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -21,6 +22,8 @@ struct Lang {
     waiting: &'static str,
     copy_all: &'static str,
     clear: &'static str,
+    preferences: &'static str,
+    formats_label: &'static str,
 }
 
 const EN: Lang = Lang {
@@ -34,6 +37,8 @@ const EN: Lang = Lang {
     waiting: "Waiting for scans…",
     copy_all: "Copy all",
     clear: "Clear",
+    preferences: "Preferences",
+    formats_label: "Barcode formats:",
 };
 
 const FR: Lang = Lang {
@@ -47,6 +52,8 @@ const FR: Lang = Lang {
     waiting: "En attente de scans…",
     copy_all: "Tout copier",
     clear: "Effacer",
+    preferences: "Préférences",
+    formats_label: "Formats de codes-barres :",
 };
 
 fn detect_lang() -> &'static Lang {
@@ -54,28 +61,298 @@ fn detect_lang() -> &'static Lang {
     if locale.starts_with("fr") { &FR } else { &EN }
 }
 
+// ── Preference enums ──────────────────────────────────────────────────────────
+
+#[derive(Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum Suffix { #[default] Enter, Tab, None }
+
+#[derive(Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum DedupMode { #[default] Consecutive, Any, Off }
+
+#[derive(Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum Transform { #[default] None, Upper, Lower, Trim }
+
+#[derive(Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum Camera { #[default] Rear, Front }
+
+// ── Formats ───────────────────────────────────────────────────────────────────
+
+#[derive(Clone, PartialEq)]
+struct Formats {
+    ean13: bool, ean8: bool, upca: bool, upce: bool,
+    code39: bool, code128: bool, qrcode: bool, pdf417: bool,
+    itf: bool, codabar: bool, code93: bool, databar: bool,
+}
+
+impl Default for Formats {
+    fn default() -> Self {
+        Self {
+            ean13: true, ean8: true, upca: true, upce: false,
+            code39: true, code128: true, qrcode: false, pdf417: false,
+            itf: false, codabar: false, code93: false, databar: false,
+        }
+    }
+}
+
+impl Formats {
+    fn is_default(&self) -> bool { *self == Self::default() }
+
+    fn to_param(&self) -> String {
+        let mut v: Vec<&str> = vec![];
+        if self.ean13   { v.push("ean13"); }
+        if self.ean8    { v.push("ean8"); }
+        if self.upca    { v.push("upca"); }
+        if self.upce    { v.push("upce"); }
+        if self.code39  { v.push("code39"); }
+        if self.code128 { v.push("code128"); }
+        if self.qrcode  { v.push("qrcode"); }
+        if self.pdf417  { v.push("pdf417"); }
+        if self.itf     { v.push("itf"); }
+        if self.codabar { v.push("codabar"); }
+        if self.code93  { v.push("code93"); }
+        if self.databar { v.push("databar"); }
+        v.join(",")
+    }
+
+    fn from_str(s: &str) -> Self {
+        let parts: HashSet<&str> = s.split(',').map(str::trim).collect();
+        Self {
+            ean13:   parts.contains("ean13"),
+            ean8:    parts.contains("ean8"),
+            upca:    parts.contains("upca"),
+            upce:    parts.contains("upce"),
+            code39:  parts.contains("code39"),
+            code128: parts.contains("code128"),
+            qrcode:  parts.contains("qrcode"),
+            pdf417:  parts.contains("pdf417"),
+            itf:     parts.contains("itf"),
+            codabar: parts.contains("codabar"),
+            code93:  parts.contains("code93"),
+            databar: parts.contains("databar"),
+        }
+    }
+}
+
+// ── Config ────────────────────────────────────────────────────────────────────
+
+fn default_dedup_secs() -> u64 { 10 }
+fn default_true() -> bool { true }
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct Config {
+    // ── Connection ──────────────────────────────────────────────────────────
+    #[serde(default)]
+    url: String,
+
+    // ── Phone-side scanner (encoded into QR URL) ────────────────────────────
+    /// Comma-separated format names; None means use scanner defaults.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    formats: Option<String>,
+    #[serde(default = "default_true")]
+    vibrate: bool,
+    #[serde(default)]
+    camera: Camera,
+    #[serde(default)]
+    torch: bool,
+
+    // ── PC-side behaviour ───────────────────────────────────────────────────
+    #[serde(default)]
+    suffix: Suffix,
+    #[serde(default = "default_dedup_secs")]
+    dedup_secs: u64,
+    #[serde(default)]
+    dedup_mode: DedupMode,
+    #[serde(default)]
+    prefix: String,
+    #[serde(default)]
+    transform: Transform,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ignore_pattern: Option<String>,
+    #[serde(default)]
+    copy_only: bool,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            url: String::new(),
+            formats: None,
+            vibrate: true,
+            camera: Camera::default(),
+            torch: false,
+            suffix: Suffix::default(),
+            dedup_secs: default_dedup_secs(),
+            dedup_mode: DedupMode::default(),
+            prefix: String::new(),
+            transform: Transform::default(),
+            ignore_pattern: None,
+            copy_only: false,
+        }
+    }
+}
+
 // ── Config persistence ────────────────────────────────────────────────────────
 
-fn config_path() -> std::path::PathBuf {
+fn config_dir() -> std::path::PathBuf {
     dirs::config_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))
         .join("barcode-keyboard")
-        .join("url.txt")
 }
 
-fn load_saved_url() -> String {
-    std::fs::read_to_string(config_path())
+fn config_file() -> std::path::PathBuf { config_dir().join("config.json") }
+
+fn load_config() -> Config {
+    std::fs::read_to_string(config_file())
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
         .unwrap_or_default()
-        .trim()
-        .to_string()
 }
 
-fn save_url(url: &str) {
-    let path = config_path();
-    if let Some(dir) = path.parent() {
-        let _ = std::fs::create_dir_all(dir);
+fn save_config(cfg: &Config) {
+    let _ = std::fs::create_dir_all(config_dir());
+    if let Ok(json) = serde_json::to_string_pretty(cfg) {
+        let _ = std::fs::write(config_file(), json);
     }
-    let _ = std::fs::write(path, url);
+}
+
+// ── Scanner URL ───────────────────────────────────────────────────────────────
+
+fn build_scanner_url(base_url: &str, endpoint_id: &str, cfg: &Config) -> String {
+    let mut url = format!(
+        "{}/scanner.html?endpoint={}",
+        base_url.trim_end_matches('/'),
+        endpoint_id
+    );
+    if let Some(fmts) = &cfg.formats {
+        url.push_str("&formats=");
+        url.push_str(fmts);
+    }
+    if !cfg.vibrate  { url.push_str("&vibrate=0"); }
+    if cfg.camera == Camera::Front { url.push_str("&camera=front"); }
+    if cfg.torch     { url.push_str("&torch=1"); }
+    url
+}
+
+// ── Keyboard injection ────────────────────────────────────────────────────────
+
+#[derive(PartialEq)]
+enum KeyboardMode { PowerShell, XDotool, Enigo, PrintOnly }
+
+fn detect_keyboard_mode() -> KeyboardMode {
+    if is_wsl() { return KeyboardMode::PowerShell; }
+    if std::env::var("DISPLAY").is_ok() || std::env::var("WAYLAND_DISPLAY").is_ok() {
+        if which_xdotool() { return KeyboardMode::XDotool; }
+        return KeyboardMode::Enigo;
+    }
+    KeyboardMode::PrintOnly
+}
+
+fn is_wsl() -> bool { std::env::var("WSL_DISTRO_NAME").is_ok() }
+
+fn which_xdotool() -> bool {
+    std::process::Command::new("xdotool").arg("version")
+        .output().map(|o| o.status.success()).unwrap_or(false)
+}
+
+fn apply_transform(text: &str, transform: Transform) -> String {
+    match transform {
+        Transform::None  => text.to_string(),
+        Transform::Upper => text.to_uppercase(),
+        Transform::Lower => text.to_lowercase(),
+        Transform::Trim  => text.trim().to_string(),
+    }
+}
+
+fn inject(mode: &KeyboardMode, enigo: &mut Option<enigo::Enigo>, raw: &str, cfg: &Config) {
+    let content = apply_transform(raw, cfg.transform);
+    let text = format!("{}{}", cfg.prefix, content);
+    match mode {
+        KeyboardMode::PowerShell => type_powershell(&text, cfg.suffix),
+        KeyboardMode::XDotool    => type_xdotool(&text, cfg.suffix),
+        KeyboardMode::Enigo      => { if let Some(e) = enigo { type_enigo(e, &text, cfg.suffix); } }
+        KeyboardMode::PrintOnly  => {}
+    }
+}
+
+fn type_xdotool(text: &str, suffix: Suffix) {
+    let _ = std::process::Command::new("xdotool")
+        .args(["type", "--clearmodifiers", "--delay", "0", "--", text]).status();
+    match suffix {
+        Suffix::Enter => { let _ = std::process::Command::new("xdotool").args(["key", "Return"]).status(); }
+        Suffix::Tab   => { let _ = std::process::Command::new("xdotool").args(["key", "Tab"]).status(); }
+        Suffix::None  => {}
+    }
+}
+
+fn type_powershell(text: &str, suffix: Suffix) {
+    let escaped: String = text.chars().flat_map(|c| match c {
+        '+' | '^' | '%' | '~' | '(' | ')' | '[' | ']' | '{' | '}' => vec!['{', c, '}'],
+        c => vec![c],
+    }).collect();
+    let suffix_keys = match suffix {
+        Suffix::Enter => "{ENTER}",
+        Suffix::Tab   => "{TAB}",
+        Suffix::None  => "",
+    };
+    let cmd = if suffix_keys.is_empty() {
+        format!(
+            "Add-Type -AssemblyName System.Windows.Forms; \
+             [System.Windows.Forms.SendKeys]::SendWait('{escaped}')"
+        )
+    } else {
+        format!(
+            "Add-Type -AssemblyName System.Windows.Forms; \
+             [System.Windows.Forms.SendKeys]::SendWait('{escaped}'); \
+             [System.Windows.Forms.SendKeys]::SendWait('{suffix_keys}')"
+        )
+    };
+    let _ = std::process::Command::new("powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &cmd]).status();
+}
+
+fn type_enigo(e: &mut enigo::Enigo, text: &str, suffix: Suffix) {
+    use enigo::{Direction, Key, Keyboard};
+    let _ = e.text(text);
+    match suffix {
+        Suffix::Enter => { let _ = e.key(Key::Return, Direction::Click); }
+        Suffix::Tab   => { let _ = e.key(Key::Tab, Direction::Click); }
+        Suffix::None  => {}
+    }
+}
+
+// ── Dedup ─────────────────────────────────────────────────────────────────────
+
+struct DedupFilter {
+    mode: DedupMode,
+    secs: u64,
+    last: Option<(String, Instant)>,
+    seen: HashSet<String>,
+}
+
+impl DedupFilter {
+    fn from_cfg(cfg: &Config) -> Self {
+        Self { mode: cfg.dedup_mode, secs: cfg.dedup_secs, last: None, seen: HashSet::new() }
+    }
+
+    fn is_dup(&self, code: &str) -> bool {
+        if self.mode == DedupMode::Off || self.secs == 0 { return false; }
+        match self.mode {
+            DedupMode::Consecutive => self.last.as_ref().is_some_and(|(prev, t)| {
+                prev == code && t.elapsed() < Duration::from_secs(self.secs)
+            }),
+            DedupMode::Any => self.seen.contains(code),
+            DedupMode::Off => false,
+        }
+    }
+
+    fn record(&mut self, code: String) {
+        if self.mode == DedupMode::Any { self.seen.insert(code.clone()); }
+        self.last = Some((code, Instant::now()));
+    }
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
@@ -84,19 +361,20 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
 
     if args.get(1).map(|s| s.as_str()) == Some("--terminal") {
-        let base_url = args.get(2).cloned().unwrap_or_else(load_saved_url);
+        let cfg = load_config();
+        let base_url = args.get(2).cloned().unwrap_or_else(|| cfg.url.clone());
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
             .unwrap()
-            .block_on(run_terminal(base_url));
+            .block_on(run_terminal(base_url, cfg));
         return;
     }
 
     let lang = detect_lang();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([380.0, 600.0])
+            .with_inner_size([380.0, 660.0])
             .with_min_inner_size([320.0, 400.0])
             .with_title(lang.title),
         ..Default::default()
@@ -114,17 +392,25 @@ fn main() {
 
 // ── Terminal mode ─────────────────────────────────────────────────────────────
 
-async fn run_terminal(base_url: String) {
+async fn run_terminal(base_url: String, cfg: Config) {
+    let mode = detect_keyboard_mode();
+    let mut enigo = if mode == KeyboardMode::Enigo {
+        enigo::Enigo::new(&enigo::Settings::default()).ok()
+    } else {
+        None
+    };
+    let mut dedup = DedupFilter::from_cfg(&cfg);
+    let start = Instant::now();
+
     println!("Starting iroh node…");
     let node = match EchoNode::spawn().await {
         Ok(n) => n,
         Err(e) => { eprintln!("iroh error: {e}"); return; }
     };
-
     let id = node.endpoint().id().to_string();
 
     if !base_url.is_empty() {
-        let url = format!("{}/scanner.html?endpoint={}", base_url.trim_end_matches('/'), id);
+        let url = build_scanner_url(&base_url, &id, &cfg);
         println!("Scanner URL: {url}");
         println!();
         if let Ok(qr) = qrcode::QrCode::new(url.as_bytes()) {
@@ -143,87 +429,21 @@ async fn run_terminal(base_url: String) {
         println!();
     }
 
-    let keyboard_mode = detect_keyboard_mode();
-    println!("Keyboard mode: {keyboard_mode}");
     println!("Waiting for barcode scans…");
-
-    let mut last_scan: Option<(String, Instant)> = None;
-    let mut enigo = if keyboard_mode == "enigo" {
-        enigo::Enigo::new(&enigo::Settings::default()).ok()
-    } else {
-        None
-    };
-    let start = Instant::now();
 
     let mut events = node.accept_events();
     while let Some(event) = events.next().await {
         if let AcceptEvent::Received { content, .. } = event {
-            let now = Instant::now();
-            let is_dup = last_scan.as_ref().is_some_and(|(prev, t)| {
-                prev == &content && now.duration_since(*t) < Duration::from_secs(10)
-            });
-            if is_dup {
+            if dedup.is_dup(&content) {
                 println!("(dup ignored: {content})");
                 continue;
             }
-
             let s = start.elapsed().as_secs();
             println!("[{:02}:{:02}:{:02}] {content}", s / 3600, (s / 60) % 60, s % 60);
-
-            match keyboard_mode.as_str() {
-                "powershell" => type_powershell(&content),
-                "xdotool"    => type_xdotool(&content),
-                "enigo" => {
-                    if let Some(e) = &mut enigo {
-                        use enigo::{Direction, Key, Keyboard};
-                        let _ = e.text(&content);
-                        let _ = e.key(Key::Return, Direction::Click);
-                    }
-                }
-                _ => {}
-            }
-
-            last_scan = Some((content, now));
+            inject(&mode, &mut enigo, &content, &cfg);
+            dedup.record(content);
         }
     }
-}
-
-// ── Keyboard injection helpers ────────────────────────────────────────────────
-
-fn detect_keyboard_mode() -> String {
-    if is_wsl() { return "powershell".to_string(); }
-    if std::env::var("DISPLAY").is_ok() || std::env::var("WAYLAND_DISPLAY").is_ok() {
-        if which_xdotool() { return "xdotool".to_string(); }
-        return "enigo".to_string();
-    }
-    "print-only".to_string()
-}
-
-fn is_wsl() -> bool { std::env::var("WSL_DISTRO_NAME").is_ok() }
-
-fn which_xdotool() -> bool {
-    std::process::Command::new("xdotool").arg("version")
-        .output().map(|o| o.status.success()).unwrap_or(false)
-}
-
-fn type_xdotool(text: &str) {
-    let _ = std::process::Command::new("xdotool")
-        .args(["type", "--clearmodifiers", "--delay", "0", "--", text]).status();
-    let _ = std::process::Command::new("xdotool").args(["key", "Return"]).status();
-}
-
-fn type_powershell(text: &str) {
-    let escaped: String = text.chars().flat_map(|c| match c {
-        '+' | '^' | '%' | '~' | '(' | ')' | '[' | ']' | '{' | '}' => vec!['{', c, '}'],
-        c => vec![c],
-    }).collect();
-    let cmd = format!(
-        "Add-Type -AssemblyName System.Windows.Forms; \
-         [System.Windows.Forms.SendKeys]::SendWait('{escaped}'); \
-         [System.Windows.Forms.SendKeys]::SendWait('{{ENTER}}')"
-    );
-    let _ = std::process::Command::new("powershell.exe")
-        .args(["-NoProfile", "-NonInteractive", "-Command", &cmd]).status();
 }
 
 // ── GUI mode ──────────────────────────────────────────────────────────────────
@@ -236,14 +456,16 @@ struct Shared {
 
 struct App {
     lang: &'static Lang,
-    base_url: String,
-    base_url_confirmed: String,
+    url_edit: String,         // text-field buffer, confirmed into cfg.url on OK
+    cfg: Config,              // source of truth for all settings
+    formats: Formats,         // parsed from cfg.formats for checkbox UI
     shared: Arc<Mutex<Shared>>,
+    keyboard_mode: KeyboardMode,
     enigo: Option<enigo::Enigo>,
-    last_scan: Option<(String, Instant)>,
+    dedup: DedupFilter,
     history: Vec<String>,
     qr_texture: Option<egui::TextureHandle>,
-    qr_for_url: String,
+    qr_cache_key: String,     // URL the current texture was built from
 }
 
 impl App {
@@ -271,32 +493,39 @@ impl App {
             });
         });
 
-        let saved_url = load_saved_url();
+        let cfg = load_config();
+        let formats = cfg.formats.as_deref().map(Formats::from_str).unwrap_or_default();
+        let dedup = DedupFilter::from_cfg(&cfg);
+        let keyboard_mode = detect_keyboard_mode();
+        let enigo = if keyboard_mode == KeyboardMode::Enigo {
+            enigo::Enigo::new(&enigo::Settings::default()).ok()
+        } else {
+            None
+        };
+
         Self {
             lang,
-            base_url: saved_url.clone(),
-            base_url_confirmed: saved_url,
+            url_edit: cfg.url.clone(),
+            formats,
+            dedup,
+            keyboard_mode,
+            enigo,
+            cfg,
             shared,
-            enigo: enigo::Enigo::new(&enigo::Settings::default()).ok(),
-            last_scan: None,
             history: Vec::new(),
             qr_texture: None,
-            qr_for_url: String::new(),
+            qr_cache_key: String::new(),
         }
     }
 
     fn scanner_url(&self) -> Option<String> {
         let id = self.shared.lock().unwrap().endpoint_id.clone()?;
-        if self.base_url_confirmed.is_empty() { return None; }
-        Some(format!(
-            "{}/scanner.html?endpoint={}",
-            self.base_url_confirmed.trim_end_matches('/'),
-            id
-        ))
+        if self.cfg.url.is_empty() { return None; }
+        Some(build_scanner_url(&self.cfg.url, &id, &self.cfg))
     }
 
     fn rebuild_qr_if_needed(&mut self, url: &str, ctx: &egui::Context) {
-        if self.qr_for_url == url { return; }
+        if self.qr_cache_key == url { return; }
         let Ok(qr) = qrcode::QrCode::new(url.as_bytes()) else { return; };
         let modules = qr.to_colors();
         let w = qr.width();
@@ -315,7 +544,35 @@ impl App {
             egui::ColorImage::from_rgba_unmultiplied([size, size], &rgba),
             egui::TextureOptions::NEAREST,
         ));
-        self.qr_for_url = url.to_string();
+        self.qr_cache_key = url.to_string();
+    }
+
+    fn show_preferences(&mut self, ui: &mut egui::Ui) {
+        ui.label(self.lang.formats_label);
+        let before = self.formats.clone();
+        egui::Grid::new("fmts").num_columns(3).spacing([12.0, 4.0]).show(ui, |ui| {
+            ui.checkbox(&mut self.formats.ean13,   "EAN-13");
+            ui.checkbox(&mut self.formats.ean8,    "EAN-8");
+            ui.checkbox(&mut self.formats.upca,    "UPC-A");
+            ui.end_row();
+            ui.checkbox(&mut self.formats.upce,    "UPC-E");
+            ui.checkbox(&mut self.formats.code39,  "Code 39");
+            ui.checkbox(&mut self.formats.code128, "Code 128");
+            ui.end_row();
+            ui.checkbox(&mut self.formats.qrcode,  "QR Code");
+            ui.checkbox(&mut self.formats.pdf417,  "PDF417");
+            ui.checkbox(&mut self.formats.itf,     "ITF");
+            ui.end_row();
+            ui.checkbox(&mut self.formats.codabar, "Codabar");
+            ui.checkbox(&mut self.formats.code93,  "Code 93");
+            ui.checkbox(&mut self.formats.databar, "DataBar");
+            ui.end_row();
+        });
+        if self.formats != before {
+            self.cfg.formats = if self.formats.is_default() { None } else { Some(self.formats.to_param()) };
+            save_config(&self.cfg);
+            self.qr_cache_key.clear();
+        }
     }
 }
 
@@ -325,20 +582,10 @@ impl eframe::App for App {
         let pending: Vec<String> = std::mem::take(&mut self.shared.lock().unwrap().pending);
 
         for code in pending {
-            let now = Instant::now();
-            let is_dup = self.last_scan.as_ref().is_some_and(|(prev, t)| {
-                prev == &code && now.duration_since(*t) < Duration::from_secs(10)
-            });
-            if is_dup { continue; }
-
-            if let Some(e) = &mut self.enigo {
-                use enigo::{Direction, Key, Keyboard};
-                let _ = e.text(&code);
-                let _ = e.key(Key::Return, Direction::Click);
-            }
-
+            if self.dedup.is_dup(&code) { continue; }
+            inject(&self.keyboard_mode, &mut self.enigo, &code, &self.cfg);
             self.history.insert(0, code.clone());
-            self.last_scan = Some((code, now));
+            self.dedup.record(code);
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -349,16 +596,16 @@ impl eframe::App for App {
             ui.horizontal(|ui| {
                 ui.label(lang.site_url);
                 let resp = ui.add(
-                    egui::TextEdit::singleline(&mut self.base_url)
+                    egui::TextEdit::singleline(&mut self.url_edit)
                         .hint_text(lang.url_hint)
                         .desired_width(f32::INFINITY),
                 );
                 let pressed_enter =
                     resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
                 if ui.button("OK").clicked() || pressed_enter {
-                    if !self.base_url.is_empty() {
-                        self.base_url_confirmed = self.base_url.clone();
-                        save_url(&self.base_url);
+                    if !self.url_edit.is_empty() {
+                        self.cfg.url = self.url_edit.clone();
+                        save_config(&self.cfg);
                     }
                 }
             });
@@ -392,7 +639,14 @@ impl eframe::App for App {
                 });
             }
 
-            ui.add_space(8.0);
+            ui.add_space(6.0);
+
+            // Preferences
+            egui::CollapsingHeader::new(lang.preferences)
+                .default_open(false)
+                .show(ui, |ui| { self.show_preferences(ui); });
+
+            ui.add_space(4.0);
             ui.separator();
             ui.add_space(4.0);
 

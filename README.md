@@ -23,7 +23,7 @@ No account, no cloud, no pairing ritual. The QR code encodes the iroh endpoint I
 |-----------|-------------|
 | `public/receiver.html` | Browser-based receiver (PC side): shows QR code, lists received barcodes, auto-copies to clipboard |
 | `public/scanner.html` | Browser-based scanner (phone side): camera viewfinder with zbar-wasm decoding |
-| `src/bin/keyboard.rs` | Native desktop app: types each scan as keystrokes (keyboard wedge) via `xdotool` / PowerShell SendKeys |
+| `src/bin/keyboard.rs` | Native desktop app: types each scan as keystrokes (keyboard wedge) via `xdotool` / PowerShell SendKeys; includes a Preferences panel for barcode format selection |
 
 ## Quick start — web version
 
@@ -55,6 +55,31 @@ The app prints a QR code in the terminal. Scan it with your phone, then scan any
 On WSL2, keystrokes are injected via `powershell.exe SendKeys` (types into focused Windows windows). On native Linux, `xdotool` is used.
 
 > A GUI mode is also available (run without `--terminal`), but requires a working display server.
+
+## Preferences
+
+The desktop app has a **Preferences** panel (collapsible, below the QR code) for customizing scanner behaviour. Settings are persisted to `~/.config/barcode-keyboard/config.json`.
+
+### Barcode formats
+
+Choose which barcode types the phone scanner recognises:
+
+| Format | Default |
+|---|---|
+| EAN-13 | enabled |
+| EAN-8 | enabled |
+| UPC-A | enabled |
+| Code 39 | enabled |
+| Code 128 | enabled |
+| UPC-E | disabled |
+| QR Code | disabled |
+| PDF417 | disabled |
+| ITF | disabled |
+| Codabar | disabled |
+| Code 93 | disabled |
+| DataBar | disabled |
+
+When you change the format selection, the QR code regenerates automatically — the phone picks up the new configuration just by rescanning it. A `?formats=` parameter is appended to the scanner URL only when the selection differs from the defaults, keeping the QR code as small as possible.
 
 ## Deduplication
 

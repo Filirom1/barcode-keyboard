@@ -150,18 +150,38 @@ try {
 }
 
 // ── zbar ─────────────────────────────────────────────────────────────────────
+const ZBAR_FORMAT_MAP = {
+  ean13:   'ZBAR_EAN13',
+  ean8:    'ZBAR_EAN8',
+  upca:    'ZBAR_UPCA',
+  upce:    'ZBAR_UPCE',
+  code39:  'ZBAR_CODE39',
+  code128: 'ZBAR_CODE128',
+  qrcode:  'ZBAR_QRCODE',
+  pdf417:  'ZBAR_PDF417',
+  itf:     'ZBAR_I25',
+  codabar: 'ZBAR_CODABAR',
+  code93:  'ZBAR_CODE93',
+  databar: 'ZBAR_DATABAR',
+}
+const DEFAULT_FORMATS = ['ean13', 'ean8', 'upca', 'code39', 'code128']
+const formatsParam = new URLSearchParams(location.search).get('formats')
+const activeFormats = formatsParam ? formatsParam.split(',') : DEFAULT_FORMATS
+
 const scanner = await zbarWasm.getDefaultScanner()
-scanner.setConfig(zbarWasm.ZBarSymbolType.ZBAR_NONE,    zbarWasm.ZBarConfigType.ZBAR_CFG_ENABLE, 0)
-scanner.setConfig(zbarWasm.ZBarSymbolType.ZBAR_EAN13,   zbarWasm.ZBarConfigType.ZBAR_CFG_ENABLE, 1)
-scanner.setConfig(zbarWasm.ZBarSymbolType.ZBAR_EAN8,    zbarWasm.ZBarConfigType.ZBAR_CFG_ENABLE, 1)
-scanner.setConfig(zbarWasm.ZBarSymbolType.ZBAR_UPCA,    zbarWasm.ZBarConfigType.ZBAR_CFG_ENABLE, 1)
-scanner.setConfig(zbarWasm.ZBarSymbolType.ZBAR_CODE39,  zbarWasm.ZBarConfigType.ZBAR_CFG_ENABLE, 1)
-scanner.setConfig(zbarWasm.ZBarSymbolType.ZBAR_CODE128, zbarWasm.ZBarConfigType.ZBAR_CFG_ENABLE, 1)
-scanner.setConfig(zbarWasm.ZBarSymbolType.ZBAR_QRCODE,  zbarWasm.ZBarConfigType.ZBAR_CFG_ENABLE, 0)
+scanner.setConfig(zbarWasm.ZBarSymbolType.ZBAR_NONE, zbarWasm.ZBarConfigType.ZBAR_CFG_ENABLE, 0)
+for (const fmt of activeFormats) {
+  const sym = ZBAR_FORMAT_MAP[fmt]
+  if (sym && zbarWasm.ZBarSymbolType[sym] !== undefined) {
+    scanner.setConfig(zbarWasm.ZBarSymbolType[sym], zbarWasm.ZBarConfigType.ZBAR_CFG_ENABLE, 1)
+  }
+}
 
 const TYPE_LABELS = {
   ZBAR_EAN13: 'EAN-13', ZBAR_EAN8: 'EAN-8', ZBAR_UPCA: 'UPC-A', ZBAR_UPCE: 'UPC-E',
-  ZBAR_CODE39: 'Code 39', ZBAR_CODE128: 'Code 128',
+  ZBAR_CODE39: 'Code 39', ZBAR_CODE128: 'Code 128', ZBAR_QRCODE: 'QR Code',
+  ZBAR_PDF417: 'PDF417', ZBAR_I25: 'ITF', ZBAR_CODABAR: 'Codabar',
+  ZBAR_CODE93: 'Code 93', ZBAR_DATABAR: 'DataBar',
 }
 const fmtType = t => TYPE_LABELS[t] ?? t.replace('ZBAR_', '')
 
