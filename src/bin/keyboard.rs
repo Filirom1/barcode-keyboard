@@ -600,10 +600,8 @@ impl eframe::App for App {
                         .hint_text(lang.url_hint)
                         .desired_width(f32::INFINITY),
                 );
-                let pressed_enter =
-                    resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-                if ui.button("OK").clicked() || pressed_enter {
-                    if !self.url_edit.is_empty() {
+                if ui.button("OK").clicked() || resp.lost_focus() {
+                    if !self.url_edit.is_empty() && self.url_edit != self.cfg.url {
                         self.cfg.url = self.url_edit.clone();
                         save_config(&self.cfg);
                     }
@@ -650,18 +648,18 @@ impl eframe::App for App {
             ui.separator();
             ui.add_space(4.0);
 
-            // History header
-            ui.horizontal(|ui| {
-                ui.label(format!("{}: {}", lang.received, self.history.len()));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.small_button(lang.clear).clicked() {
-                        self.history.clear();
-                    }
-                    if ui.small_button(lang.copy_all).clicked() {
-                        let all = self.history.iter().rev()
-                            .cloned().collect::<Vec<_>>().join("\n");
-                        ui.output_mut(|o| o.copied_text = all);
-                    }
+            // History header — buttons allocated first (right side) so they are never clipped
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.small_button(lang.clear).clicked() {
+                    self.history.clear();
+                }
+                if ui.small_button(lang.copy_all).clicked() {
+                    let all = self.history.iter().rev()
+                        .cloned().collect::<Vec<_>>().join("\n");
+                    ui.output_mut(|o| o.copied_text = all);
+                }
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                    ui.label(format!("{}: {}", lang.received, self.history.len()));
                 });
             });
             ui.add_space(4.0);
