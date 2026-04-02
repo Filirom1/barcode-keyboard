@@ -188,16 +188,46 @@ const fmtType = t => TYPE_LABELS[t] ?? t.replace('ZBAR_', '')
 // ── Camera ───────────────────────────────────────────────────────────────────
 function setStatus(cls, text) { dot.className = cls; lastMeta.textContent = text }
 
-try {
-  const stream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
-  })
-  video.srcObject = stream
-  await video.play()
-  setStatus('ok', 'Point camera at a barcode')
-} catch (e) {
-  setStatus('warn', 'Camera error: ' + e.message)
+const CAM_CONSTRAINTS = {
+  video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
 }
+
+async function startCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia(CAM_CONSTRAINTS)
+    video.srcObject = stream
+    await video.play()
+    setStatus('ok', 'Point camera at a barcode')
+  } catch (e) {
+    setStatus('warn', 'Camera error: ' + e.message)
+  }
+}
+
+await startCamera()
+
+function isStreamDead() {
+  const tracks = video.srcObject?.getVideoTracks() ?? []
+  return tracks.length === 0 || tracks.some(t => t.readyState === 'ended')
+}
+
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState !== 'visible') return
+  if (isStreamDead()) {
+    setStatus('warn', 'Resuming camera…')
+    await startCamera()
+  }
+})
+
+video.addEventListener('pause', async () => {
+  try {
+    await video.play()
+  } catch {
+    if (isStreamDead()) {
+      setStatus('warn', 'Resuming camera…')
+      await startCamera()
+    }
+  }
+})
 
 let tapped = false
 document.addEventListener('touchstart', () => { tapped = true }, { once: true })
@@ -313,16 +343,23 @@ async function tick() {
         fadeAlpha = 1; clearTimeout(fadeTimer); redraw(); startFade()
         vfEl.classList.add('found')
 
-        for (const sym of symbols) {
+        // Pick the barcode with the largest bounding box (avoids partial adjacent barcodes)
+        const symArea = sym => {
+          const xs = sym.points.map(p => p.x), ys = sym.points.map(p => p.y)
+          return (Math.max(...xs) - Math.min(...xs)) * (Math.max(...ys) - Math.min(...ys))
+        }
+        const sym = symbols.reduce((best, s) => symArea(s) > symArea(best) ? s : best)
+        {
           const code = sym.decode(), now = Date.now()
-          if (code === prevCode && now - prevAt < 5000) continue
-          prevCode = code; prevAt = now
+          if (!(code === prevCode && now - prevAt < 5000)) {
+            prevCode = code; prevAt = now
 
-          lastCode.textContent = code
-          lastMeta.textContent = `${fmtType(sym.typeName)}  ·  ${new Date().toLocaleTimeString()}`
-          setStatus('send', 'Sending…')
-          if (tapped) navigator.vibrate?.(55)
-          sendBarcode(code)
+            lastCode.textContent = code
+            lastMeta.textContent = `${fmtType(sym.typeName)}  ·  ${new Date().toLocaleTimeString()}`
+            setStatus('send', 'Sending…')
+            if (tapped) navigator.vibrate?.(55)
+            sendBarcode(code)
+          }
         }
       } else {
         vfEl.classList.remove('found')

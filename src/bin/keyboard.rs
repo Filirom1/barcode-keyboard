@@ -24,6 +24,12 @@ struct Lang {
     clear: &'static str,
     preferences: &'static str,
     formats_label: &'static str,
+    suffix_label: &'static str,
+    dedup_label: &'static str,
+    prefix_label: &'static str,
+    transform_label: &'static str,
+    ignore_label: &'static str,
+    copy_only_label: &'static str,
 }
 
 const EN: Lang = Lang {
@@ -39,6 +45,12 @@ const EN: Lang = Lang {
     clear: "Clear",
     preferences: "Preferences",
     formats_label: "Barcode formats:",
+    suffix_label: "Key after scan:",
+    dedup_label: "Deduplication:",
+    prefix_label: "Prefix:",
+    transform_label: "Transform:",
+    ignore_label: "Ignore pattern (regex):",
+    copy_only_label: "Copy to clipboard only (no keystroke)",
 };
 
 const FR: Lang = Lang {
@@ -54,6 +66,12 @@ const FR: Lang = Lang {
     clear: "Effacer",
     preferences: "Préférences",
     formats_label: "Formats de codes-barres :",
+    suffix_label: "Touche après scan :",
+    dedup_label: "Déduplication :",
+    prefix_label: "Préfixe :",
+    transform_label: "Transformation :",
+    ignore_label: "Ignorer (regex) :",
+    copy_only_label: "Copier uniquement (sans frappe clavier)",
 };
 
 fn detect_lang() -> &'static Lang {
@@ -355,6 +373,54 @@ impl DedupFilter {
     }
 }
 
+// ── Display helpers ───────────────────────────────────────────────────────────
+
+fn suffix_display(s: Suffix) -> &'static str {
+    match s { Suffix::Enter => "Enter", Suffix::Tab => "Tab", Suffix::None => "None" }
+}
+
+fn dedup_secs_display(s: u64) -> &'static str {
+    match s { 0 => "Disabled", 2 => "2 s", 5 => "5 s", 10 => "10 s", 30 => "30 s", 60 => "60 s", _ => "Custom" }
+}
+
+fn dedup_mode_display(m: DedupMode) -> &'static str {
+    match m { DedupMode::Consecutive => "Consecutive", DedupMode::Any => "Any", DedupMode::Off => "Disabled" }
+}
+
+fn transform_display(t: Transform) -> &'static str {
+    match t { Transform::None => "None", Transform::Upper => "Uppercase", Transform::Lower => "Lowercase", Transform::Trim => "Trim" }
+}
+
+fn matches_ignore(code: &str, pattern: &Option<String>) -> bool {
+    let Some(pat) = pattern else { return false; };
+    if pat.is_empty() { return false; }
+    regex::Regex::new(pat).map(|r| r.is_match(code)).unwrap_or(false)
+}
+
+// ── App icon ──────────────────────────────────────────────────────────────────
+
+fn barcode_icon() -> egui::IconData {
+    const W: usize = 32;
+    const H: usize = 32;
+    // 26-column barcode pattern (0=white, 1=black), 3 px quiet zone each side
+    const BARS: [u8; 26] = [1,1,0,1,0,1,1,0,1,1,0,1,0,0,1,0,1,1,0,1,0,1,0,1,1,0];
+    let bar_top    = H / 8;       // 4 px
+    let bar_bottom = H * 7 / 8;  // 28 px
+    let quiet      = H / 10 + 1; // 4 px quiet zone
+
+    let mut rgba = vec![255u8; W * H * 4]; // white, fully opaque
+    for y in bar_top..bar_bottom {
+        for (i, &bar) in BARS.iter().enumerate() {
+            let x = quiet + i;
+            if x < W && bar == 1 {
+                let b = (y * W + x) * 4;
+                rgba[b] = 0; rgba[b+1] = 0; rgba[b+2] = 0;
+            }
+        }
+    }
+    egui::IconData { rgba, width: W as u32, height: H as u32 }
+}
+
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 fn main() {
@@ -376,7 +442,8 @@ fn main() {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([380.0, 660.0])
             .with_min_inner_size([320.0, 400.0])
-            .with_title(lang.title),
+            .with_title(lang.title)
+            .with_icon(barcode_icon()),
         ..Default::default()
     };
     if let Err(e) = eframe::run_native(
@@ -438,9 +505,15 @@ async fn run_terminal(base_url: String, cfg: Config) {
                 println!("(dup ignored: {content})");
                 continue;
             }
+            if matches_ignore(&content, &cfg.ignore_pattern) {
+                println!("(ignored: {content})");
+                continue;
+            }
             let s = start.elapsed().as_secs();
             println!("[{:02}:{:02}:{:02}] {content}", s / 3600, (s / 60) % 60, s % 60);
-            inject(&mode, &mut enigo, &content, &cfg);
+            if !cfg.copy_only {
+                inject(&mode, &mut enigo, &content, &cfg);
+            }
             dedup.record(content);
         }
     }
@@ -573,6 +646,89 @@ impl App {
             save_config(&self.cfg);
             self.qr_cache_key.clear();
         }
+
+        ui.separator();
+
+        // Suffix
+        ui.horizontal(|ui| {
+            ui.label(self.lang.suffix_label);
+            let old = self.cfg.suffix;
+            egui::ComboBox::from_id_salt("suffix_cb")
+                .selected_text(suffix_display(self.cfg.suffix))
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut self.cfg.suffix, Suffix::Enter, "Enter");
+                    ui.selectable_value(&mut self.cfg.suffix, Suffix::Tab, "Tab");
+                    ui.selectable_value(&mut self.cfg.suffix, Suffix::None, "None");
+                });
+            if self.cfg.suffix != old { save_config(&self.cfg); }
+        });
+
+        ui.separator();
+
+        // Deduplication
+        ui.label(self.lang.dedup_label);
+        let old_secs = self.cfg.dedup_secs;
+        let old_mode = self.cfg.dedup_mode;
+        ui.horizontal(|ui| {
+            egui::ComboBox::from_id_salt("dedup_secs_cb")
+                .selected_text(dedup_secs_display(self.cfg.dedup_secs))
+                .show_ui(ui, |ui| {
+                    for &s in &[0u64, 2, 5, 10, 30, 60] {
+                        ui.selectable_value(&mut self.cfg.dedup_secs, s, dedup_secs_display(s));
+                    }
+                });
+            egui::ComboBox::from_id_salt("dedup_mode_cb")
+                .selected_text(dedup_mode_display(self.cfg.dedup_mode))
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut self.cfg.dedup_mode, DedupMode::Consecutive, "Consecutive");
+                    ui.selectable_value(&mut self.cfg.dedup_mode, DedupMode::Any, "Any");
+                    ui.selectable_value(&mut self.cfg.dedup_mode, DedupMode::Off, "Disabled");
+                });
+        });
+        if self.cfg.dedup_secs != old_secs || self.cfg.dedup_mode != old_mode {
+            self.dedup = DedupFilter::from_cfg(&self.cfg);
+            save_config(&self.cfg);
+        }
+
+        ui.separator();
+
+        // Prefix
+        ui.horizontal(|ui| {
+            ui.label(self.lang.prefix_label);
+            if ui.text_edit_singleline(&mut self.cfg.prefix).lost_focus() {
+                save_config(&self.cfg);
+            }
+        });
+
+        // Transform
+        ui.horizontal(|ui| {
+            ui.label(self.lang.transform_label);
+            let old = self.cfg.transform;
+            egui::ComboBox::from_id_salt("transform_cb")
+                .selected_text(transform_display(self.cfg.transform))
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut self.cfg.transform, Transform::None, "None");
+                    ui.selectable_value(&mut self.cfg.transform, Transform::Upper, "Uppercase");
+                    ui.selectable_value(&mut self.cfg.transform, Transform::Lower, "Lowercase");
+                    ui.selectable_value(&mut self.cfg.transform, Transform::Trim, "Trim");
+                });
+            if self.cfg.transform != old { save_config(&self.cfg); }
+        });
+
+        ui.separator();
+
+        // Ignore pattern
+        ui.label(self.lang.ignore_label);
+        let mut pat = self.cfg.ignore_pattern.clone().unwrap_or_default();
+        if ui.text_edit_singleline(&mut pat).lost_focus() {
+            self.cfg.ignore_pattern = if pat.is_empty() { None } else { Some(pat) };
+            save_config(&self.cfg);
+        }
+
+        // Copy only
+        if ui.checkbox(&mut self.cfg.copy_only, self.lang.copy_only_label).changed() {
+            save_config(&self.cfg);
+        }
     }
 }
 
@@ -580,12 +736,22 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let lang = self.lang;
         let pending: Vec<String> = std::mem::take(&mut self.shared.lock().unwrap().pending);
+        let mut to_copy: Vec<String> = vec![];
 
         for code in pending {
             if self.dedup.is_dup(&code) { continue; }
-            inject(&self.keyboard_mode, &mut self.enigo, &code, &self.cfg);
+            if matches_ignore(&code, &self.cfg.ignore_pattern) { continue; }
+            if self.cfg.copy_only {
+                let text = format!("{}{}", self.cfg.prefix, apply_transform(&code, self.cfg.transform));
+                to_copy.push(text);
+            } else {
+                inject(&self.keyboard_mode, &mut self.enigo, &code, &self.cfg);
+            }
             self.history.insert(0, code.clone());
             self.dedup.record(code);
+        }
+        if !to_copy.is_empty() {
+            ctx.output_mut(|o| o.copied_text = to_copy.join("\n"));
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {

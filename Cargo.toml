@@ -24,6 +24,7 @@ dirs = { version = "5", optional = true }
 eframe = { version = "0.30", optional = true }
 enigo = { version = "0.2", optional = true }
 qrcode = { version = "0.14", optional = true }
+regex = { version = "1", optional = true }
 sys-locale = { version = "0.3", optional = true }
 console_error_panic_hook = "0.1.7"
 getrandom = { version = "0.3", features = ["wasm_js"] }
@@ -43,7 +44,13 @@ wasm-streams = "0.4.2"
 
 [features]
 cli = ["tokio/full", "dep:clap"]
-keyboard = ["tokio/full", "dep:eframe", "dep:enigo", "dep:qrcode", "dep:sys-locale", "dep:dirs", "dep:serde_json"]
+keyboard = ["tokio/full", "dep:eframe", "dep:enigo", "dep:qrcode", "dep:sys-locale", "dep:dirs", "dep:serde_json", "dep:regex"]
+
+[build-dependencies]
+# Icon generation for the Windows exe resource
+[target.'cfg(windows)'.build-dependencies]
+ico = "0.3"
+winres = "0.1"
 
 [profile.release]
 codegen-units = 1

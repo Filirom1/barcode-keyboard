@@ -22,8 +22,8 @@ No account, no cloud, no pairing ritual. The QR code encodes the iroh endpoint I
 | Component | Description |
 |-----------|-------------|
 | `public/receiver.html` | Browser-based receiver (PC side): shows QR code, lists received barcodes, auto-copies to clipboard |
-| `public/scanner.html` | Browser-based scanner (phone side): camera viewfinder with zbar-wasm decoding |
-| `src/bin/keyboard.rs` | Native desktop app: types each scan as keystrokes (keyboard wedge) via `xdotool` / PowerShell SendKeys; includes a Preferences panel for barcode format selection |
+| `public/scanner.html` | Browser-based scanner (phone side): camera viewfinder with zbar-wasm decoding; picks the largest detected barcode when multiple are in frame; recovers the camera stream automatically after the screen wakes up |
+| `src/bin/keyboard.rs` | Native desktop app: types each scan as keystrokes (keyboard wedge) via `xdotool` / PowerShell SendKeys; includes a full Preferences panel |
 
 ## Quick start — web version
 
@@ -58,7 +58,7 @@ On WSL2, keystrokes are injected via `powershell.exe SendKeys` (types into focus
 
 ## Preferences
 
-The desktop app has a **Preferences** panel (collapsible, below the QR code) for customizing scanner behaviour. Settings are persisted to `~/.config/barcode-keyboard/config.json`.
+The desktop app has a **Preferences** panel (collapsible, below the QR code) for customising scanner behaviour. Settings are persisted to `~/.config/barcode-keyboard/config.json`.
 
 ### Barcode formats
 
@@ -81,9 +81,57 @@ Choose which barcode types the phone scanner recognises:
 
 When you change the format selection, the QR code regenerates automatically — the phone picks up the new configuration just by rescanning it. A `?formats=` parameter is appended to the scanner URL only when the selection differs from the defaults, keeping the QR code as small as possible.
 
-## Deduplication
+### Key after scan (suffix)
 
-Same barcode scanned within **10 seconds** is silently ignored on the PC side (phone side: 5 seconds). This prevents the camera from sending the same barcode frame-by-frame. To re-scan the same barcode intentionally, wait 10 seconds or restart the app.
+| Option | Behaviour |
+|---|---|
+| Enter (default) | Press Return after typing |
+| Tab | Press Tab — useful for multi-field forms |
+| None | Type the barcode only |
+
+### Deduplication
+
+Controls whether repeated scans of the same barcode are ignored on the PC side (the phone side always applies a 5-second window).
+
+**Timeout** — window during which a duplicate is suppressed:
+
+| Option | Value |
+|---|---|
+| Disabled | 0 s |
+| 2 s | 2 |
+| 5 s | 5 |
+| 10 s (default) | 10 |
+| 30 s | 30 |
+| 60 s | 60 |
+
+**Mode** — what counts as a duplicate:
+
+| Option | Behaviour |
+|---|---|
+| Consecutive (default) | Ignore if same as the immediately previous scan |
+| Any | Ignore if the same code was seen at any point in the session |
+| Disabled | Accept all scans unconditionally |
+
+### Prefix
+
+Prepend a fixed string before every typed barcode (e.g. `ITEM:`).
+
+### Transform
+
+| Option | Behaviour |
+|---|---|
+| None (default) | Type as-is |
+| Uppercase | Convert to uppercase |
+| Lowercase | Convert to lowercase |
+| Trim | Strip leading/trailing whitespace |
+
+### Ignore pattern (regex)
+
+Drop barcodes matching a regular expression before they are typed. Leave blank to disable.
+
+### Copy only (no keystroke)
+
+When enabled, the barcode is copied to the clipboard instead of injected as keystrokes — useful when the target application is not focused.
 
 ## Building
 
