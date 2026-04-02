@@ -19,15 +19,16 @@
       display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center;
       width: 100%; max-width: 560px;
     }
-    a.card {
+    a.card, div.card {
       flex: 1 1 200px;
       background: #1e293b; border: 1px solid #334155; border-radius: 12px;
       padding: 1.5rem 1.25rem;
       text-decoration: none; color: inherit;
       display: flex; flex-direction: column; gap: 0.5rem;
-      transition: border-color 0.15s, background 0.15s;
     }
+    a.card { transition: border-color 0.15s, background 0.15s; cursor: pointer; }
     a.card:hover { border-color: #4ade80; background: #172414; }
+    div.card { border-style: dashed; opacity: 0.7; }
     .card-label { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em;
                   text-transform: uppercase; color: #4ade80; }
     .card-title { font-size: 1.05rem; font-weight: 600; color: #f1f5f9; }
@@ -46,13 +47,13 @@
       <span class="card-title">PC Receiver</span>
       <span class="card-desc">Shows a QR code. Scan it with your phone to connect.</span>
     </a>
-    <a class="card" href="scanner.html">
-      <span class="card-label">Step 2 — Open on phone</span>
+    <div class="card">
+      <span class="card-label">Step 2 — On your phone</span>
       <span class="card-title">Phone Scanner</span>
-      <span class="card-desc">Camera viewfinder. Point at any barcode to send it to the PC.</span>
-    </a>
+      <span class="card-desc">Scan the QR code shown by the PC receiver — it opens the scanner with the correct connection already set up.</span>
+    </div>
   </div>
 
-  <footer>Powered by <a href="https://iroh.computer" target="_blank">iroh</a></footer>
+  <footer>Powered by <a href="https://iroh.computer" target="_blank">iroh</a> · <a href="https://github.com/undecaf/zbar-wasm" target="_blank">zbar-wasm</a></footer>
 </body>
 </html>

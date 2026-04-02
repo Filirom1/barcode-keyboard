@@ -212,6 +212,12 @@ public/
 
 The iroh protocol uses ALPN `b"iroh/example-browser-echo/0"`. Both sides speak the same protocol: connect → send barcode bytes → receive echo → done.
 
+## Built with
+
+- [iroh](https://iroh.computer) — direct peer-to-peer connectivity over QUIC/WebRTC; no server needed
+- [zbar-wasm](https://github.com/undecaf/zbar-wasm) — barcode decoding in the browser via WebAssembly
+- [egui / eframe](https://github.com/emilk/egui) — immediate-mode GUI for the native desktop app
+
 ## License
 
 MIT
