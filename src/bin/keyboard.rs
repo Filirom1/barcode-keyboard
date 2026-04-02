@@ -157,13 +157,14 @@ impl Formats {
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
+fn default_url() -> String { "https://filirom1.github.io/barcode-keyboard".to_string() }
 fn default_dedup_secs() -> u64 { 10 }
 fn default_true() -> bool { true }
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct Config {
     // ── Connection ──────────────────────────────────────────────────────────
-    #[serde(default)]
+    #[serde(default = "default_url")]
     url: String,
 
     // ── Phone-side scanner (encoded into QR URL) ────────────────────────────
@@ -197,7 +198,7 @@ struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            url: String::new(),
+            url: default_url(),
             formats: None,
             vibrate: true,
             camera: Camera::default(),
