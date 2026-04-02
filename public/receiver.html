@@ -36,8 +36,48 @@
     }
     #qr-url:hover { opacity: 1; }
 
+    /* ── Preferences ── */
+    details { width: 100%; max-width: 560px; }
+    summary {
+      cursor: pointer; color: #64748b; font-size: 0.85rem;
+      padding: 0.4rem 0; user-select: none; list-style: none;
+      display: flex; align-items: center; gap: 0.4rem;
+    }
+    summary::before { content: '▶'; font-size: 0.65rem; transition: transform 0.15s; }
+    details[open] summary::before { transform: rotate(90deg); }
+    summary:hover { color: #94a3b8; }
+    .prefs {
+      background: #1e293b; border-radius: 8px;
+      padding: 1rem; margin-top: 0.5rem;
+      display: flex; flex-direction: column; gap: 0.8rem;
+    }
+    .pref-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+    .pref-label { font-size: 0.8rem; color: #94a3b8; min-width: 100px; flex-shrink: 0; }
+    .pref-formats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.3rem 1rem; }
+    .pref-formats label { font-size: 0.8rem; color: #cbd5e1; display: flex; align-items: center; gap: 0.35rem; cursor: pointer; }
+    .pref-sep { border: none; border-top: 1px solid #334155; }
+    select, input[type="text"] {
+      background: #0f172a; border: 1px solid #334155; border-radius: 4px;
+      color: #e2e8f0; padding: 0.25rem 0.5rem; font-size: 0.8rem;
+      outline: none;
+    }
+    select:focus, input[type="text"]:focus { border-color: #4ade80; }
+    input[type="text"] { flex: 1; min-width: 0; }
+    input[type="text"]::placeholder { color: #475569; }
+
+    /* ── History ── */
     #barcodes-section { width: 100%; max-width: 560px; display: none; }
-    h2 { font-size: 0.95rem; color: #4ade80; margin-bottom: 0.6rem; }
+    .bc-header {
+      display: flex; align-items: center; gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .bc-header h2 { font-size: 0.95rem; color: #4ade80; flex: 1; }
+    button {
+      background: #1e293b; border: 1px solid #334155; border-radius: 4px;
+      color: #94a3b8; padding: 0.2rem 0.55rem; cursor: pointer;
+      font-size: 0.78rem; line-height: 1.4;
+    }
+    button:hover { border-color: #4ade80; color: #4ade80; }
     #barcodes {
       background: #1e293b; border-radius: 8px;
       min-height: 160px; max-height: 420px; overflow-y: auto;
@@ -53,7 +93,7 @@
     .bc-entry.flash { animation: rowflash 0.6s ease-out; }
     @keyframes rowflash { from { background: #14532d; } to { background: transparent; } }
     #empty { color: #475569; padding: 1rem; text-align: center; font-size: 0.9rem; }
-    #copy-notice { min-height: 1.2rem; font-size: 0.78rem; color: #4ade80; text-align: center; }
+    #copy-notice { min-height: 1.2rem; font-size: 0.78rem; color: #4ade80; text-align: center; margin-top: 0.3rem; }
   </style>
 </head>
 <body>
@@ -66,8 +106,65 @@
     <a id="qr-url" href="#" target="_blank"></a>
   </div>
 
+  <details>
+    <summary>Preferences</summary>
+    <div class="prefs">
+
+      <div class="pref-label">Barcode formats</div>
+      <div class="pref-formats" id="fmt-grid"></div>
+
+      <hr class="pref-sep">
+
+      <div class="pref-row">
+        <span class="pref-label">Deduplication</span>
+        <select id="dedup-secs">
+          <option value="0">Disabled</option>
+          <option value="2">2 s</option>
+          <option value="5">5 s</option>
+          <option value="10">10 s</option>
+          <option value="30">30 s</option>
+          <option value="60">60 s</option>
+        </select>
+        <select id="dedup-mode">
+          <option value="consecutive">Consecutive</option>
+          <option value="any">Any</option>
+          <option value="off">Disabled</option>
+        </select>
+      </div>
+
+      <hr class="pref-sep">
+
+      <div class="pref-row">
+        <span class="pref-label">Prefix</span>
+        <input type="text" id="prefix" placeholder="e.g. ITEM:">
+      </div>
+
+      <div class="pref-row">
+        <span class="pref-label">Transform</span>
+        <select id="transform">
+          <option value="none">None</option>
+          <option value="upper">Uppercase</option>
+          <option value="lower">Lowercase</option>
+          <option value="trim">Trim</option>
+        </select>
+      </div>
+
+      <hr class="pref-sep">
+
+      <div class="pref-row">
+        <span class="pref-label">Ignore (regex)</span>
+        <input type="text" id="ignore-pattern" placeholder="e.g. ^TEST">
+      </div>
+
+    </div>
+  </details>
+
   <div id="barcodes-section">
-    <h2>Received barcodes</h2>
+    <div class="bc-header">
+      <button id="btn-copy-all">Copy all</button>
+      <button id="btn-clear">Clear</button>
+      <h2>Received: <span id="bc-count">0</span></h2>
+    </div>
     <div id="barcodes"><div id="empty">Waiting for scans…</div></div>
     <div id="copy-notice"></div>
   </div>
@@ -75,60 +172,203 @@
   <script type="module">
     import init, { EchoNode } from "./wasm/barcode_keyboard.js";
 
-    const statusDot  = document.querySelector('.spinner');
-    const statusText = document.getElementById('status-text');
-    const qrSection  = document.getElementById('qr-section');
-    const bcSection  = document.getElementById('barcodes-section');
-    const barcodesEl = document.getElementById('barcodes');
-    const copyNotice = document.getElementById('copy-notice');
-    let emptyEl = document.getElementById('empty');
+    // ── DOM ──────────────────────────────────────────────────────────────────
+    const statusDot  = document.querySelector('.spinner')
+    const statusText = document.getElementById('status-text')
+    const qrSection  = document.getElementById('qr-section')
+    const bcSection  = document.getElementById('barcodes-section')
+    const barcodesEl = document.getElementById('barcodes')
+    const copyNotice = document.getElementById('copy-notice')
+    const bcCount    = document.getElementById('bc-count')
+    let emptyEl      = document.getElementById('empty')
 
-    function setStatus(text, done = false) {
-      statusText.textContent = text;
-      if (done) statusDot.style.display = 'none';
+    // ── Config (localStorage) ────────────────────────────────────────────────
+    const ALL_FORMATS = [
+      ['ean13', 'EAN-13'], ['ean8', 'EAN-8'],    ['upca', 'UPC-A'],    ['upce', 'UPC-E'],
+      ['code39', 'Code 39'], ['code128', 'Code 128'], ['qrcode', 'QR Code'], ['pdf417', 'PDF417'],
+      ['itf', 'ITF'], ['codabar', 'Codabar'], ['code93', 'Code 93'], ['databar', 'DataBar'],
+    ]
+    const DEFAULT_FORMATS = ['ean13', 'ean8', 'upca', 'code39', 'code128']
+
+    const DEFAULTS = {
+      formats: DEFAULT_FORMATS,
+      dedup_secs: 10,
+      dedup_mode: 'consecutive',
+      prefix: '',
+      transform: 'none',
+      ignore_pattern: '',
     }
 
-    setStatus('Loading WASM…');
-    await init();
-    setStatus('Starting iroh node…');
-    const node = await EchoNode.spawn();
-    const endpointId = node.endpoint_id();
+    function loadCfg() {
+      try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem('receiver-cfg') || '{}') } }
+      catch { return { ...DEFAULTS } }
+    }
+    function saveCfg() { localStorage.setItem('receiver-cfg', JSON.stringify(cfg)) }
 
-    const scannerUrl = new URL('./scanner.html', location.href);
-    scannerUrl.searchParams.set('endpoint', endpointId);
+    let cfg = loadCfg()
 
-    QrCreator.render(
-      { text: scannerUrl.toString(), radius: 0, ecLevel: 'H', fill: '#000', background: '#fff', size: 240 },
-      document.getElementById('qr-canvas')
-    );
-    const qrUrlEl = document.getElementById('qr-url');
-    qrUrlEl.href = scannerUrl.toString();
-    qrUrlEl.textContent = scannerUrl.toString();
-    qrSection.style.display = 'flex';
-    bcSection.style.display = 'block';
-    setStatus('Ready — scan the QR code with your phone', true);
+    // ── Format checkboxes ────────────────────────────────────────────────────
+    const fmtGrid = document.getElementById('fmt-grid')
+    for (const [key, label] of ALL_FORMATS) {
+      const lbl = document.createElement('label')
+      const cb  = document.createElement('input')
+      cb.type = 'checkbox'
+      cb.checked = cfg.formats.includes(key)
+      cb.dataset.fmt = key
+      lbl.append(cb, ' ' + label)
+      fmtGrid.append(lbl)
+      cb.addEventListener('change', () => {
+        cfg.formats = [...fmtGrid.querySelectorAll('input')].filter(c => c.checked).map(c => c.dataset.fmt)
+        saveCfg(); rebuildQr()
+      })
+    }
 
+    // ── Other preference inputs ──────────────────────────────────────────────
+    const dedupSecsEl = document.getElementById('dedup-secs')
+    const dedupModeEl = document.getElementById('dedup-mode')
+    const prefixEl    = document.getElementById('prefix')
+    const transformEl = document.getElementById('transform')
+    const ignorePat   = document.getElementById('ignore-pattern')
+
+    dedupSecsEl.value = cfg.dedup_secs
+    dedupModeEl.value = cfg.dedup_mode
+    prefixEl.value    = cfg.prefix
+    transformEl.value = cfg.transform
+    ignorePat.value   = cfg.ignore_pattern
+
+    dedupSecsEl.addEventListener('change', () => { cfg.dedup_secs = Number(dedupSecsEl.value); saveCfg() })
+    dedupModeEl.addEventListener('change', () => { cfg.dedup_mode = dedupModeEl.value; saveCfg() })
+    prefixEl.addEventListener('input',    () => { cfg.prefix = prefixEl.value; saveCfg() })
+    transformEl.addEventListener('change',() => { cfg.transform = transformEl.value; saveCfg() })
+    ignorePat.addEventListener('input',   () => { cfg.ignore_pattern = ignorePat.value; saveCfg() })
+
+    // ── Processing helpers ───────────────────────────────────────────────────
+    function applyTransform(code) {
+      switch (cfg.transform) {
+        case 'upper': return code.toUpperCase()
+        case 'lower': return code.toLowerCase()
+        case 'trim':  return code.trim()
+        default:      return code
+      }
+    }
+
+    function matchesIgnore(code) {
+      if (!cfg.ignore_pattern) return false
+      try { return new RegExp(cfg.ignore_pattern).test(code) } catch { return false }
+    }
+
+    // ── Dedup ────────────────────────────────────────────────────────────────
+    let dedupPrev = '', dedupPrevAt = 0
+    const dedupSeen = new Set()
+
+    function isDup(code) {
+      if (cfg.dedup_mode === 'off' || cfg.dedup_secs === 0) return false
+      if (cfg.dedup_mode === 'consecutive')
+        return code === dedupPrev && Date.now() - dedupPrevAt < cfg.dedup_secs * 1000
+      if (cfg.dedup_mode === 'any') return dedupSeen.has(code)
+      return false
+    }
+
+    function recordSeen(code) {
+      dedupPrev = code; dedupPrevAt = Date.now(); dedupSeen.add(code)
+    }
+
+    // ── QR code ──────────────────────────────────────────────────────────────
+    let endpointId = null
+    const history  = []
+
+    function formatsParam() {
+      const fmts = cfg.formats.slice().sort()
+      const defs = DEFAULT_FORMATS.slice().sort()
+      const isDefault = fmts.length === defs.length && fmts.every((f, i) => f === defs[i])
+      return isDefault ? null : fmts.join(',')
+    }
+
+    function buildScannerUrl() {
+      if (!endpointId) return null
+      const url = new URL('./scanner.html', location.href)
+      url.searchParams.set('endpoint', endpointId)
+      const fp = formatsParam()
+      if (fp) url.searchParams.set('formats', fp)
+      return url.toString()
+    }
+
+    function rebuildQr() {
+      const url = buildScannerUrl()
+      if (!url) return
+      QrCreator.render(
+        { text: url, radius: 0, ecLevel: 'H', fill: '#000', background: '#fff', size: 240 },
+        document.getElementById('qr-canvas')
+      )
+      const qrUrlEl = document.getElementById('qr-url')
+      qrUrlEl.href = url; qrUrlEl.textContent = url
+    }
+
+    // ── Status ───────────────────────────────────────────────────────────────
+    function setStatus(text, done = false) {
+      statusText.textContent = text
+      if (done) statusDot.style.display = 'none'
+    }
+
+    // ── Copy all / Clear ─────────────────────────────────────────────────────
+    document.getElementById('btn-copy-all').addEventListener('click', async () => {
+      if (!history.length) return
+      try {
+        await navigator.clipboard.writeText(history.slice().reverse().join('\n'))
+        copyNotice.textContent = `Copied ${history.length} barcode(s)`
+        setTimeout(() => { copyNotice.textContent = '' }, 2000)
+      } catch { /* blocked */ }
+    })
+
+    document.getElementById('btn-clear').addEventListener('click', () => {
+      history.length = 0
+      barcodesEl.innerHTML = ''
+      emptyEl = document.createElement('div')
+      emptyEl.id = 'empty'; emptyEl.textContent = 'Waiting for scans…'
+      barcodesEl.append(emptyEl)
+      bcCount.textContent = '0'
+    })
+
+    // ── Init ─────────────────────────────────────────────────────────────────
+    setStatus('Loading WASM…')
+    await init()
+    setStatus('Starting iroh node…')
+    const node = await EchoNode.spawn()
+    endpointId = node.endpoint_id()
+
+    rebuildQr()
+    qrSection.style.display = 'flex'
+    bcSection.style.display = 'block'
+    setStatus('Ready — scan the QR code with your phone', true)
+
+    // ── Event loop ───────────────────────────────────────────────────────────
     for await (const event of node.events()) {
-      if (event.type !== 'received') continue;
-      const content = event.content;
+      if (event.type !== 'received') continue
+      const raw = event.content
 
-      if (emptyEl) { emptyEl.remove(); emptyEl = null; }
+      if (isDup(raw)) continue
+      if (matchesIgnore(raw)) continue
+      recordSeen(raw)
 
-      const entry = document.createElement('div');
-      entry.className = 'bc-entry flash';
-      const val = document.createElement('span');
-      val.className = 'bc-value';
-      val.textContent = content;
-      const ts = document.createElement('span');
-      ts.className = 'bc-time';
-      ts.textContent = new Date().toLocaleTimeString();
-      entry.append(val, ts);
-      barcodesEl.insertBefore(entry, barcodesEl.firstChild);
+      const content = cfg.prefix + applyTransform(raw)
+      history.push(content)
+      bcCount.textContent = history.length
+
+      if (emptyEl) { emptyEl.remove(); emptyEl = null }
+
+      const entry = document.createElement('div')
+      entry.className = 'bc-entry flash'
+      const val = document.createElement('span')
+      val.className = 'bc-value'; val.textContent = content
+      const ts = document.createElement('span')
+      ts.className = 'bc-time'; ts.textContent = new Date().toLocaleTimeString()
+      entry.append(val, ts)
+      barcodesEl.insertBefore(entry, barcodesEl.firstChild)
 
       try {
-        await navigator.clipboard.writeText(content + '\n');
-        copyNotice.textContent = `Copied: ${content}`;
-        setTimeout(() => { copyNotice.textContent = ''; }, 2000);
+        await navigator.clipboard.writeText(content + '\n')
+        copyNotice.textContent = `Copied: ${content}`
+        setTimeout(() => { copyNotice.textContent = '' }, 2000)
       } catch { /* clipboard blocked */ }
     }
   </script>
