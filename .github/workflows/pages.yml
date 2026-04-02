@@ -1,0 +1,78 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-wasm:
+    name: Build WASM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable + wasm32 target)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install LLVM tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y clang llvm lld binaryen
+
+      - name: Install wasm-bindgen-cli (pinned)
+        run: cargo install wasm-bindgen-cli --version 0.2.114 --locked
+
+      - name: Build WASM
+        env:
+          CC_wasm32_unknown_unknown: clang
+          AR_wasm32_unknown_unknown: llvm-ar
+        run: |
+          cargo build --target wasm32-unknown-unknown --release
+          wasm-bindgen \
+            ./target/wasm32-unknown-unknown/release/barcode_keyboard.wasm \
+            --out-dir=public/wasm --weak-refs --target=web
+          wasm-opt \
+            --enable-nontrapping-float-to-int --enable-bulk-memory --enable-sign-ext \
+            -Os \
+            -o public/wasm/barcode_keyboard_bg.wasm \
+            public/wasm/barcode_keyboard_bg.wasm
+
+      - name: Sanity check (no "env" imports)
+        run: |
+          count=$(grep -c 'from "env"' public/wasm/barcode_keyboard.js || true)
+          echo "env imports: $count"
+          [ "$count" -eq 0 ]
+
+      - name: Upload web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web
+          path: public/
+
+  deploy-pages:
+    name: Deploy to GitHub Pages
+    needs: build-wasm
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: web
+          path: web/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/
+      - id: deploy
+        uses: actions/deploy-pages@v4

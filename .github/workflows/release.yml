@@ -107,28 +107,6 @@ jobs:
           name: keyboard-windows-x86_64
           path: target/release/keyboard.exe
 
-  # ── GitHub Pages ─────────────────────────────────────────────────────────────
-  deploy-pages:
-    name: Deploy to GitHub Pages
-    needs: build-wasm
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: web
-          path: web/
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: web/
-      - id: deploy
-        uses: actions/deploy-pages@v4
-
   # ── GitHub Release (on tag) ──────────────────────────────────────────────────
   release:
     name: GitHub Release
