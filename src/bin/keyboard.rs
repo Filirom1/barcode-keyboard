@@ -116,9 +116,8 @@ enum OutputMode {
     Serial,    // Write to virtual COM port
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-enum Suffix { #[default] Enter, Tab, None }
+// Suffix is now defined in lib.rs and re-exported
+use barcode_keyboard::Suffix;
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -196,6 +195,13 @@ fn default_url() -> String { "https://filirom1.github.io/barcode-keyboard".to_st
 fn default_dedup_secs() -> u64 { 10 }
 fn default_true() -> bool { true }
 
+#[cfg(target_os = "windows")]
+fn default_serial_port() -> String { "COM3".to_string() }
+#[cfg(not(target_os = "windows"))]
+fn default_serial_port() -> String { "/dev/ttyUSB0".to_string() }
+
+fn default_serial_baud_rate() -> u32 { 9600 }
+
 #[derive(serde::Serialize, serde::Deserialize)]
 struct Config {
     // ── Connection ──────────────────────────────────────────────────────────
@@ -230,6 +236,10 @@ struct Config {
     ignore_pattern: Option<String>,
     #[serde(default)]
     copy_only: bool,
+    #[serde(default = "default_serial_port")]
+    serial_port: String,
+    #[serde(default = "default_serial_baud_rate")]
+    serial_baud_rate: u32,
 }
 
 impl Default for Config {
@@ -248,6 +258,8 @@ impl Default for Config {
             transform: Transform::default(),
             ignore_pattern: None,
             copy_only: false,
+            serial_port: default_serial_port(),
+            serial_baud_rate: default_serial_baud_rate(),
         }
     }
 }
@@ -378,18 +390,28 @@ fn inject(mode: &KeyboardMode, enigo: &mut Option<enigo::Enigo>, raw: &str, cfg:
         }
         OutputMode::Serial => {
             debug_log("Serial mode: writing to COM port");
-            write_to_serial_port(&text, cfg.suffix);
+            write_to_serial_port(&text, cfg.suffix, cfg);
         }
     }
 }
 
 // ── Serial port output ────────────────────────────────────────────────────────
 
-fn write_to_serial_port(_text: &str, _suffix: Suffix) {
-    debug_log("Serial port output not yet implemented");
-    // TODO: Implement virtual COM port creation and writing
-    // Windows: Use com0com or similar
-    // Linux: Use socat or pty
+fn write_to_serial_port(text: &str, suffix: Suffix, cfg: &Config) {
+    debug_log(&format!("Serial mode: writing to {} @ {} baud", cfg.serial_port, cfg.serial_baud_rate));
+
+    // Clone data for 'static lifetime requirement in async task
+    let text = text.to_string();
+    let port_name = cfg.serial_port.clone();
+    let baud_rate = cfg.serial_baud_rate;
+
+    // Spawn async task for non-blocking serial write
+    tokio::spawn(async move {
+        match barcode_keyboard::serial::write_to_serial_async(&text, suffix, &port_name, baud_rate).await {
+            Ok(_) => debug_log("Serial write successful"),
+            Err(e) => debug_log(&format!("Serial write failed: {}", e)),
+        }
+    });
 }
 
 fn type_xdotool(text: &str, suffix: Suffix) {
@@ -771,6 +793,38 @@ impl App {
                 });
             if self.cfg.output_mode != old { save_config(&self.cfg); }
         });
+
+        // Serial port settings (only shown when Serial mode is selected)
+        if self.cfg.output_mode == OutputMode::Serial {
+            ui.separator();
+            ui.label("Serial Port Settings:");
+
+            ui.horizontal(|ui| {
+                ui.label("Port:");
+                if ui.text_edit_singleline(&mut self.cfg.serial_port).lost_focus() {
+                    save_config(&self.cfg);
+                }
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Baud Rate:");
+                let old = self.cfg.serial_baud_rate;
+                egui::ComboBox::from_id_salt("baud_rate")
+                    .selected_text(format!("{}", self.cfg.serial_baud_rate))
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut self.cfg.serial_baud_rate, 9600, "9600");
+                        ui.selectable_value(&mut self.cfg.serial_baud_rate, 19200, "19200");
+                        ui.selectable_value(&mut self.cfg.serial_baud_rate, 38400, "38400");
+                        ui.selectable_value(&mut self.cfg.serial_baud_rate, 57600, "57600");
+                        ui.selectable_value(&mut self.cfg.serial_baud_rate, 115200, "115200");
+                    });
+                if self.cfg.serial_baud_rate != old { save_config(&self.cfg); }
+            });
+
+            ui.label("Examples:");
+            ui.label("  Windows: COM3, COM4, COM5");
+            ui.label("  Linux: /dev/ttyUSB0, /dev/ttyACM0, /dev/pts/1");
+        }
 
         ui.separator();
 
