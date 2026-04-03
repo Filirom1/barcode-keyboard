@@ -46,6 +46,7 @@ struct Lang {
     copy_all: &'static str,
     clear: &'static str,
     preferences: &'static str,
+    output_mode_label: &'static str,
     formats_label: &'static str,
     suffix_label: &'static str,
     dedup_label: &'static str,
@@ -67,6 +68,7 @@ const EN: Lang = Lang {
     copy_all: "Copy all",
     clear: "Clear",
     preferences: "Preferences",
+    output_mode_label: "Output mode:",
     formats_label: "Barcode formats:",
     suffix_label: "Key after scan:",
     dedup_label: "Deduplication:",
@@ -88,6 +90,7 @@ const FR: Lang = Lang {
     copy_all: "Tout copier",
     clear: "Effacer",
     preferences: "Préférences",
+    output_mode_label: "Mode de sortie :",
     formats_label: "Formats de codes-barres :",
     suffix_label: "Touche après scan :",
     dedup_label: "Déduplication :",
@@ -103,6 +106,15 @@ fn detect_lang() -> &'static Lang {
 }
 
 // ── Preference enums ──────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum OutputMode {
+    #[default]
+    Keyboard,  // Current mode: simulate keystrokes via Enigo/PowerShell/xdotool
+    Hid,       // Inject raw HID reports at driver level
+    Serial,    // Write to virtual COM port
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -203,6 +215,8 @@ struct Config {
 
     // ── PC-side behaviour ───────────────────────────────────────────────────
     #[serde(default)]
+    output_mode: OutputMode,
+    #[serde(default)]
     suffix: Suffix,
     #[serde(default = "default_dedup_secs")]
     dedup_secs: u64,
@@ -226,6 +240,7 @@ impl Default for Config {
             vibrate: true,
             camera: Camera::default(),
             torch: false,
+            output_mode: OutputMode::default(),
             suffix: Suffix::default(),
             dedup_secs: default_dedup_secs(),
             dedup_mode: DedupMode::default(),
@@ -314,30 +329,67 @@ fn apply_transform(text: &str, transform: Transform) -> String {
 fn inject(mode: &KeyboardMode, enigo: &mut Option<enigo::Enigo>, raw: &str, cfg: &Config) {
     let content = apply_transform(raw, cfg.transform);
     let text = format!("{}{}", cfg.prefix, content);
-    debug_log(&format!("inject() called - mode: {:?}, enigo present: {}, raw: '{}', transformed: '{}'",
-        mode, enigo.is_some(), raw, text));
-    match mode {
-        KeyboardMode::PowerShell => {
-            debug_log("Using PowerShell SendKeys");
-            type_powershell(&text, cfg.suffix);
-        }
-        KeyboardMode::XDotool => {
-            debug_log("Using xdotool");
-            type_xdotool(&text, cfg.suffix);
-        }
-        KeyboardMode::Enigo => {
-            if let Some(e) = enigo {
-                debug_log("Using Enigo");
-                type_enigo(e, &text, cfg.suffix);
-                debug_log("Enigo completed");
-            } else {
-                debug_log("ERROR: Enigo mode selected but enigo is None!");
+    debug_log(&format!("inject() called - output_mode: {:?}, keyboard_mode: {:?}, enigo present: {}, raw: '{}', transformed: '{}'",
+        cfg.output_mode, mode, enigo.is_some(), raw, text));
+
+    match cfg.output_mode {
+        OutputMode::Keyboard => {
+            // Standard keyboard simulation via Enigo/PowerShell/xdotool
+            match mode {
+                KeyboardMode::PowerShell => {
+                    debug_log("Using PowerShell SendKeys");
+                    type_powershell(&text, cfg.suffix);
+                }
+                KeyboardMode::XDotool => {
+                    debug_log("Using xdotool");
+                    type_xdotool(&text, cfg.suffix);
+                }
+                KeyboardMode::Enigo => {
+                    if let Some(e) = enigo {
+                        debug_log("Using Enigo");
+                        type_enigo(e, &text, cfg.suffix);
+                        debug_log("Enigo completed");
+                    } else {
+                        debug_log("ERROR: Enigo mode selected but enigo is None!");
+                    }
+                }
+                KeyboardMode::PrintOnly => {
+                    debug_log("PrintOnly mode - no keyboard injection");
+                }
             }
         }
-        KeyboardMode::PrintOnly => {
-            debug_log("PrintOnly mode - no keyboard injection");
+        OutputMode::Hid => {
+            debug_log("HID mode: injecting via Windows SendInput");
+            #[cfg(target_os = "windows")]
+            {
+                let hid_suffix = match cfg.suffix {
+                    Suffix::Enter => barcode_keyboard::hid::windows::Suffix::Enter,
+                    Suffix::Tab => barcode_keyboard::hid::windows::Suffix::Tab,
+                    Suffix::None => barcode_keyboard::hid::windows::Suffix::None,
+                };
+                if let Err(e) = barcode_keyboard::hid::windows::inject_hid_reports_windows(&text, hid_suffix) {
+                    debug_log(&format!("HID injection failed: {}", e));
+                }
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                debug_log("HID mode only supported on Windows");
+            }
+        }
+        OutputMode::Serial => {
+            debug_log("Serial mode: writing to COM port");
+            write_to_serial_port(&text, cfg.suffix);
         }
     }
+}
+
+// ── Serial port output ────────────────────────────────────────────────────────
+
+fn write_to_serial_port(_text: &str, _suffix: Suffix) {
+    debug_log("Serial port output not yet implemented");
+    // TODO: Implement virtual COM port creation and writing
+    // Windows: Use com0com or similar
+    // Linux: Use socat or pty
 }
 
 fn type_xdotool(text: &str, suffix: Suffix) {
@@ -436,6 +488,14 @@ impl DedupFilter {
 }
 
 // ── Display helpers ───────────────────────────────────────────────────────────
+
+fn output_mode_display(m: OutputMode) -> &'static str {
+    match m {
+        OutputMode::Keyboard => "Keyboard (simulate keystrokes)",
+        OutputMode::Hid => "HID (raw driver injection)",
+        OutputMode::Serial => "Serial (COM port)",
+    }
+}
 
 fn suffix_display(s: Suffix) -> &'static str {
     match s { Suffix::Enter => "Enter", Suffix::Tab => "Tab", Suffix::None => "None" }
@@ -698,6 +758,22 @@ impl App {
     }
 
     fn show_preferences(&mut self, ui: &mut egui::Ui) {
+        // Output mode
+        ui.horizontal(|ui| {
+            ui.label(self.lang.output_mode_label);
+            let old = self.cfg.output_mode;
+            egui::ComboBox::from_id_salt("output_mode_cb")
+                .selected_text(output_mode_display(self.cfg.output_mode))
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut self.cfg.output_mode, OutputMode::Keyboard, output_mode_display(OutputMode::Keyboard));
+                    ui.selectable_value(&mut self.cfg.output_mode, OutputMode::Hid, output_mode_display(OutputMode::Hid));
+                    ui.selectable_value(&mut self.cfg.output_mode, OutputMode::Serial, output_mode_display(OutputMode::Serial));
+                });
+            if self.cfg.output_mode != old { save_config(&self.cfg); }
+        });
+
+        ui.separator();
+
         ui.label(self.lang.formats_label);
         let before = self.formats.clone();
         egui::Grid::new("fmts").num_columns(3).spacing([12.0, 4.0]).show(ui, |ui| {

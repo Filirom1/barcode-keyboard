@@ -43,9 +43,16 @@ wasm-bindgen = "=0.2.114"
 wasm-bindgen-futures = "0.4.50"
 wasm-streams = "0.4.2"
 
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_UI_Input_KeyboardAndMouse",
+], optional = true }
+
 [features]
 cli = ["tokio/full", "dep:clap"]
-keyboard = ["tokio/full", "dep:eframe", "dep:enigo", "dep:qrcode", "dep:sys-locale", "dep:dirs", "dep:serde_json", "dep:regex", "dep:chrono"]
+keyboard = ["tokio/full", "dep:eframe", "dep:enigo", "dep:qrcode", "dep:sys-locale", "dep:dirs", "dep:serde_json", "dep:regex", "dep:chrono", "hid"]
+hid = []
 
 [build-dependencies]
 # Icon generation for the Windows exe resource
