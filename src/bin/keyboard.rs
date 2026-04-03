@@ -267,6 +267,10 @@ fn detect_keyboard_mode() -> KeyboardMode {
         if which_xdotool() { return KeyboardMode::XDotool; }
         return KeyboardMode::Enigo;
     }
+    // Native Windows (not WSL) - use Enigo for keyboard simulation
+    if cfg!(windows) {
+        return KeyboardMode::Enigo;
+    }
     KeyboardMode::PrintOnly
 }
 
