@@ -104,7 +104,7 @@ fn detect_lang() -> &'static Lang {
 
 // ── Preference enums ──────────────────────────────────────────────────────────
 
-#[derive(Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum Suffix { #[default] Enter, Tab, None }
 
@@ -281,7 +281,7 @@ fn build_scanner_url(base_url: &str, endpoint_id: &str, cfg: &Config) -> String 
 
 // ── Keyboard injection ────────────────────────────────────────────────────────
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 enum KeyboardMode { PowerShell, XDotool, Enigo, PrintOnly }
 
 fn detect_keyboard_mode() -> KeyboardMode {
