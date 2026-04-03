@@ -30,7 +30,7 @@ fn send_char(ch: char) -> Result<(), String> {
     }
 
     unsafe {
-        let vk_result = VkKeyScanA(ch as u8);
+        let vk_result = VkKeyScanA(ch as i8);
         if vk_result == -1i16 {
             return Err(format!("Character '{}' has no VK mapping", ch));
         }
