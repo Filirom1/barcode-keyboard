@@ -3,11 +3,34 @@
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
+use std::io::Write;
 
 use eframe::egui;
 use n0_future::StreamExt;
 
 use barcode_keyboard::node::{AcceptEvent, EchoNode};
+
+// ── Debug logging ─────────────────────────────────────────────────────────────
+
+static DEBUG_FILE: Mutex<Option<std::fs::File>> = Mutex::new(None);
+
+fn init_debug_logging() {
+    let log_path = config_dir().join("debug.log");
+    if let Ok(mut file) = std::fs::File::create(&log_path) {
+        let _ = writeln!(file, "=== Barcode Keyboard Debug Log ===");
+        let _ = writeln!(file, "Started: {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"));
+        let _ = writeln!(file, "Log file: {}", log_path.display());
+        *DEBUG_FILE.lock().unwrap() = Some(file);
+        eprintln!("Debug logging enabled: {}", log_path.display());
+    }
+}
+
+fn debug_log(msg: &str) {
+    if let Some(file) = DEBUG_FILE.lock().unwrap().as_mut() {
+        let _ = writeln!(file, "[{}] {}", chrono::Local::now().format("%H:%M:%S%.3f"), msg);
+        let _ = file.flush();
+    }
+}
 
 // ── i18n ──────────────────────────────────────────────────────────────────────
 
@@ -267,11 +290,9 @@ fn detect_keyboard_mode() -> KeyboardMode {
         if which_xdotool() { return KeyboardMode::XDotool; }
         return KeyboardMode::Enigo;
     }
-    // Native Windows (not WSL) - use Enigo for keyboard simulation
-    if cfg!(windows) {
-        return KeyboardMode::Enigo;
-    }
-    KeyboardMode::PrintOnly
+    // Windows detection: if no Linux display vars, assume Windows and use Enigo
+    // (matches v0.1.0 behavior where Enigo was always created on non-Linux)
+    KeyboardMode::Enigo
 }
 
 fn is_wsl() -> bool { std::env::var("WSL_DISTRO_NAME").is_ok() }
@@ -293,11 +314,29 @@ fn apply_transform(text: &str, transform: Transform) -> String {
 fn inject(mode: &KeyboardMode, enigo: &mut Option<enigo::Enigo>, raw: &str, cfg: &Config) {
     let content = apply_transform(raw, cfg.transform);
     let text = format!("{}{}", cfg.prefix, content);
+    debug_log(&format!("inject() called - mode: {:?}, enigo present: {}, raw: '{}', transformed: '{}'",
+        mode, enigo.is_some(), raw, text));
     match mode {
-        KeyboardMode::PowerShell => type_powershell(&text, cfg.suffix),
-        KeyboardMode::XDotool    => type_xdotool(&text, cfg.suffix),
-        KeyboardMode::Enigo      => { if let Some(e) = enigo { type_enigo(e, &text, cfg.suffix); } }
-        KeyboardMode::PrintOnly  => {}
+        KeyboardMode::PowerShell => {
+            debug_log("Using PowerShell SendKeys");
+            type_powershell(&text, cfg.suffix);
+        }
+        KeyboardMode::XDotool => {
+            debug_log("Using xdotool");
+            type_xdotool(&text, cfg.suffix);
+        }
+        KeyboardMode::Enigo => {
+            if let Some(e) = enigo {
+                debug_log("Using Enigo");
+                type_enigo(e, &text, cfg.suffix);
+                debug_log("Enigo completed");
+            } else {
+                debug_log("ERROR: Enigo mode selected but enigo is None!");
+            }
+        }
+        KeyboardMode::PrintOnly => {
+            debug_log("PrintOnly mode - no keyboard injection");
+        }
     }
 }
 
@@ -339,11 +378,29 @@ fn type_powershell(text: &str, suffix: Suffix) {
 
 fn type_enigo(e: &mut enigo::Enigo, text: &str, suffix: Suffix) {
     use enigo::{Direction, Key, Keyboard};
-    let _ = e.text(text);
+    debug_log(&format!("type_enigo() - text: '{}', suffix: {:?}", text, suffix));
+    match e.text(text) {
+        Ok(_) => debug_log("e.text() OK"),
+        Err(err) => debug_log(&format!("e.text() ERROR: {:?}", err)),
+    }
     match suffix {
-        Suffix::Enter => { let _ = e.key(Key::Return, Direction::Click); }
-        Suffix::Tab   => { let _ = e.key(Key::Tab, Direction::Click); }
-        Suffix::None  => {}
+        Suffix::Enter => {
+            debug_log("Sending Enter key");
+            match e.key(Key::Return, Direction::Click) {
+                Ok(_) => debug_log("Enter key OK"),
+                Err(err) => debug_log(&format!("Enter key ERROR: {:?}", err)),
+            }
+        }
+        Suffix::Tab => {
+            debug_log("Sending Tab key");
+            match e.key(Key::Tab, Direction::Click) {
+                Ok(_) => debug_log("Tab key OK"),
+                Err(err) => debug_log(&format!("Tab key ERROR: {:?}", err)),
+            }
+        }
+        Suffix::None => {
+            debug_log("No suffix key");
+        }
     }
 }
 
@@ -430,6 +487,17 @@ fn barcode_icon() -> egui::IconData {
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+
+    // Check for --debug flag
+    let debug_mode = args.iter().any(|a| a == "--debug" || a == "-d");
+    if debug_mode {
+        init_debug_logging();
+        debug_log(&format!("Args: {:?}", args));
+        debug_log(&format!("OS: {}", std::env::consts::OS));
+        debug_log(&format!("WSL_DISTRO_NAME: {:?}", std::env::var("WSL_DISTRO_NAME")));
+        debug_log(&format!("DISPLAY: {:?}", std::env::var("DISPLAY")));
+        debug_log(&format!("WAYLAND_DISPLAY: {:?}", std::env::var("WAYLAND_DISPLAY")));
+    }
 
     if args.get(1).map(|s| s.as_str()) == Some("--terminal") {
         let cfg = load_config();
@@ -575,9 +643,13 @@ impl App {
         let formats = cfg.formats.as_deref().map(Formats::from_str).unwrap_or_default();
         let dedup = DedupFilter::from_cfg(&cfg);
         let keyboard_mode = detect_keyboard_mode();
+        debug_log(&format!("Keyboard mode detected: {:?}", keyboard_mode));
         let enigo = if keyboard_mode == KeyboardMode::Enigo {
-            enigo::Enigo::new(&enigo::Settings::default()).ok()
+            let e = enigo::Enigo::new(&enigo::Settings::default()).ok();
+            debug_log(&format!("Enigo initialization: {}", if e.is_some() { "SUCCESS" } else { "FAILED" }));
+            e
         } else {
+            debug_log("Enigo not needed for this keyboard mode");
             None
         };
 
@@ -744,12 +816,21 @@ impl eframe::App for App {
         let mut to_copy: Vec<String> = vec![];
 
         for code in pending {
-            if self.dedup.is_dup(&code) { continue; }
-            if matches_ignore(&code, &self.cfg.ignore_pattern) { continue; }
+            debug_log(&format!("Received barcode: '{}'", code));
+            if self.dedup.is_dup(&code) {
+                debug_log("Skipped: duplicate");
+                continue;
+            }
+            if matches_ignore(&code, &self.cfg.ignore_pattern) {
+                debug_log("Skipped: matches ignore pattern");
+                continue;
+            }
             if self.cfg.copy_only {
+                debug_log("copy_only mode enabled");
                 let text = format!("{}{}", self.cfg.prefix, apply_transform(&code, self.cfg.transform));
                 to_copy.push(text);
             } else {
+                debug_log("Calling inject()");
                 inject(&self.keyboard_mode, &mut self.enigo, &code, &self.cfg);
             }
             self.history.insert(0, code.clone());
