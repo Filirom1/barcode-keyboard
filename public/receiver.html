@@ -97,28 +97,28 @@
   </style>
 </head>
 <body>
-  <h1>Barcode Receiver</h1>
-  <div id="status"><span class="spinner"></span><span id="status-text">Loading…</span></div>
+  <h1 data-i18n="title">Barcode Receiver</h1>
+  <div id="status"><span class="spinner"></span><span id="status-text" data-i18n="loading">Loading…</span></div>
 
   <div id="qr-section">
     <div id="qr-wrap"><canvas id="qr-canvas"></canvas></div>
-    <div id="qr-hint">Scan with your phone to open the scanner</div>
+    <div id="qr-hint" data-i18n="qrHint">Scan with your phone to open the scanner</div>
     <a id="qr-url" href="#" target="_blank"></a>
   </div>
 
   <details>
-    <summary>Preferences</summary>
+    <summary data-i18n="preferences">Preferences</summary>
     <div class="prefs">
 
-      <div class="pref-label">Barcode formats</div>
+      <div class="pref-label" data-i18n="formats">Barcode formats</div>
       <div class="pref-formats" id="fmt-grid"></div>
 
       <hr class="pref-sep">
 
       <div class="pref-row">
-        <span class="pref-label">Deduplication</span>
+        <span class="pref-label" data-i18n="dedup">Deduplication</span>
         <select id="dedup-secs">
-          <option value="0">Disabled</option>
+          <option value="0" data-i18n="off">Disabled</option>
           <option value="2">2 s</option>
           <option value="5">5 s</option>
           <option value="10">10 s</option>
@@ -126,33 +126,33 @@
           <option value="60">60 s</option>
         </select>
         <select id="dedup-mode">
-          <option value="consecutive">Consecutive</option>
-          <option value="any">Any</option>
-          <option value="off">Disabled</option>
+          <option value="consecutive" data-i18n="consecutive">Consecutive</option>
+          <option value="any" data-i18n="any">Any</option>
+          <option value="off" data-i18n="off">Disabled</option>
         </select>
       </div>
 
       <hr class="pref-sep">
 
       <div class="pref-row">
-        <span class="pref-label">Prefix</span>
+        <span class="pref-label" data-i18n="prefix">Prefix</span>
         <input type="text" id="prefix" placeholder="e.g. ITEM:">
       </div>
 
       <div class="pref-row">
-        <span class="pref-label">Transform</span>
+        <span class="pref-label" data-i18n="transform">Transform</span>
         <select id="transform">
-          <option value="none">None</option>
-          <option value="upper">Uppercase</option>
-          <option value="lower">Lowercase</option>
-          <option value="trim">Trim</option>
+          <option value="none" data-i18n="none">None</option>
+          <option value="upper" data-i18n="upper">Uppercase</option>
+          <option value="lower" data-i18n="lower">Lowercase</option>
+          <option value="trim" data-i18n="trim">Trim</option>
         </select>
       </div>
 
       <hr class="pref-sep">
 
       <div class="pref-row">
-        <span class="pref-label">Ignore (regex)</span>
+        <span class="pref-label" data-i18n="ignore">Ignore (regex)</span>
         <input type="text" id="ignore-pattern" placeholder="e.g. ^TEST">
       </div>
 
@@ -161,16 +161,96 @@
 
   <div id="barcodes-section">
     <div class="bc-header">
-      <button id="btn-copy-all">Copy all</button>
-      <button id="btn-clear">Clear</button>
-      <h2>Received: <span id="bc-count">0</span></h2>
+      <button id="btn-copy-all" data-i18n="copyAll">Copy all</button>
+      <button id="btn-clear" data-i18n="clear">Clear</button>
+      <h2><span data-i18n="received">Received:</span> <span id="bc-count">0</span></h2>
     </div>
-    <div id="barcodes"><div id="empty">Waiting for scans…</div></div>
+    <div id="barcodes"><div id="empty" data-i18n="waiting">Waiting for scans…</div></div>
     <div id="copy-notice"></div>
   </div>
 
   <script type="module">
     import init, { EchoNode } from "./wasm/barcode_keyboard.js";
+
+    // ── Internationalization (i18n) ──────────────────────────────────────────
+    const TRANSLATIONS = {
+      fr: {
+        title: 'Barcode Receiver', // Keep tab title English for uniformity
+        loading: 'Chargement…',
+        loadingWasm: 'Chargement de WASM…',
+        startingIroh: 'Démarrage du nœud iroh…',
+        ready: 'Prêt — scannez le QR code avec votre téléphone',
+        preferences: 'Préférences',
+        formats: 'Formats de codes-barres',
+        dedup: 'Déduplication',
+        consecutive: 'Consécutifs',
+        any: 'Tous',
+        off: 'Désactivée',
+        disabled: 'Désactivé',
+        prefix: 'Préfixe',
+        transform: 'Transformation',
+        none: 'Aucune',
+        upper: 'Majuscules',
+        lower: 'Minuscules',
+        trim: 'Nettoyer (Trim)',
+        ignore: 'Ignorer (regex)',
+        copyAll: 'Copier tout',
+        clear: 'Effacer',
+        received: 'Reçus : ',
+        waiting: 'En attente de scans…',
+        qrHint: 'Scannez avec votre téléphone pour ouvrir le scanner',
+        copiedCount: '{count} code(s)-barres copié(s)',
+        copiedSingle: 'Copié',
+      },
+      en: {
+        title: 'Barcode Receiver',
+        loading: 'Loading…',
+        loadingWasm: 'Loading WASM…',
+        startingIroh: 'Starting iroh node…',
+        ready: 'Ready — scan the QR code with your phone',
+        preferences: 'Preferences',
+        formats: 'Barcode formats',
+        dedup: 'Deduplication',
+        consecutive: 'Consecutive',
+        any: 'Any',
+        off: 'Disabled',
+        disabled: 'Disabled',
+        prefix: 'Prefix',
+        transform: 'Transform',
+        none: 'None',
+        upper: 'Uppercase',
+        lower: 'Lowercase',
+        trim: 'Trim',
+        ignore: 'Ignore (regex)',
+        copyAll: 'Copy all',
+        clear: 'Clear',
+        received: 'Received: ',
+        waiting: 'Waiting for scans…',
+        qrHint: 'Scan with your phone to open the scanner',
+        copiedCount: 'Copied {count} barcode(s)',
+        copiedSingle: 'Copied',
+      }
+    }
+
+    const lang = (navigator.language || navigator.userLanguage || 'en').startsWith('fr') ? 'fr' : 'en'
+    const t = TRANSLATIONS[lang]
+
+    function applyI18n() {
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.dataset.i18n
+        if (t[key]) {
+          el.textContent = t[key]
+        }
+      })
+      
+      // Update document title
+      if (t.title) {
+        document.title = t.title
+      }
+    }
+
+    // Apply on load
+    applyI18n()
 
     // ── DOM ──────────────────────────────────────────────────────────────────
     const statusDot  = document.querySelector('.spinner')
@@ -262,7 +342,7 @@
     const dedupSeen = new Set()
 
     function isDup(code) {
-      if (cfg.dedup_mode === 'off' || cfg.dedup_secs === 0) return false
+      if (cfg.dedup_mode === 'off') return false
       if (cfg.dedup_mode === 'consecutive')
         return code === dedupPrev && Date.now() - dedupPrevAt < cfg.dedup_secs * 1000
       if (cfg.dedup_mode === 'any') return dedupSeen.has(code)
@@ -315,7 +395,7 @@
       if (!history.length) return
       try {
         await navigator.clipboard.writeText(history.slice().reverse().join('\n'))
-        copyNotice.textContent = `Copied ${history.length} barcode(s)`
+        copyNotice.textContent = t.copiedCount.replace('{count}', history.length)
         setTimeout(() => { copyNotice.textContent = '' }, 2000)
       } catch { /* blocked */ }
     })
@@ -324,22 +404,22 @@
       history.length = 0
       barcodesEl.innerHTML = ''
       emptyEl = document.createElement('div')
-      emptyEl.id = 'empty'; emptyEl.textContent = 'Waiting for scans…'
+      emptyEl.id = 'empty'; emptyEl.textContent = t.waiting
       barcodesEl.append(emptyEl)
       bcCount.textContent = '0'
     })
 
     // ── Init ─────────────────────────────────────────────────────────────────
-    setStatus('Loading WASM…')
+    setStatus(t.loadingWasm)
     await init()
-    setStatus('Starting iroh node…')
+    setStatus(t.startingIroh)
     const node = await EchoNode.spawn()
     endpointId = node.endpoint_id()
 
     rebuildQr()
     qrSection.style.display = 'flex'
     bcSection.style.display = 'block'
-    setStatus('Ready — scan the QR code with your phone', true)
+    setStatus(t.ready, true)
 
     // ── Event loop ───────────────────────────────────────────────────────────
     for await (const event of node.events()) {
@@ -367,7 +447,7 @@
 
       try {
         await navigator.clipboard.writeText(content + '\n')
-        copyNotice.textContent = `Copied: ${content}`
+        copyNotice.textContent = `✓ ${t.copiedSingle}: ${content}`
         setTimeout(() => { copyNotice.textContent = '' }, 2000)
       } catch { /* clipboard blocked */ }
     }

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Barcode Keyboard</title>
+  <title data-i18n="title">Barcode Keyboard</title>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -38,22 +38,78 @@
   </style>
 </head>
 <body>
-  <h1>Barcode Keyboard</h1>
-  <p>Wireless barcode scanner — phone camera sends scans to your PC over a direct peer-to-peer connection. No server, no pairing.</p>
+  <h1 data-i18n="title">Barcode Keyboard</h1>
+  <p data-i18n="desc">Wireless barcode scanner — phone camera sends scans to your PC over a direct peer-to-peer connection. No server, no pairing.</p>
 
   <div class="cards">
     <a class="card" href="receiver.html">
-      <span class="card-label">Step 1 — Open on PC</span>
-      <span class="card-title">PC Receiver</span>
-      <span class="card-desc">Shows a QR code. Scan it with your phone to connect.</span>
+      <span class="card-label" data-i18n="step1Label">Étape 1 — Sur PC</span>
+      <span class="card-title" data-i18n="step1Title">Récepteur PC</span>
+      <span class="card-desc" data-i18n="step1Desc">Affiche un QR code. Scannez-le avec votre téléphone pour vous connecter.</span>
     </a>
     <div class="card">
-      <span class="card-label">Step 2 — On your phone</span>
-      <span class="card-title">Phone Scanner</span>
-      <span class="card-desc">Scan the QR code shown by the PC receiver — it opens the scanner with the correct connection already set up.</span>
+      <span class="card-label" data-i18n="step2Label">Étape 2 — Sur Téléphone</span>
+      <span class="card-title" data-i18n="step2Title">Scanner connecté</span>
+      <span class="card-desc" data-i18n="step2Desc">Scannez le QR code affiché sur le PC pour ouvrir le scanner connecté.</span>
     </div>
+    <a class="card" href="scanner.html">
+      <span class="card-label" data-i18n="step3Label">Mode autonome</span>
+      <span class="card-title" data-i18n="step3Title">Scanner Local (Hors-ligne)</span>
+      <span class="card-desc" data-i18n="step3Desc">Scannez et stockez vos codes-barres directement sur votre téléphone. Copiez ou partagez la liste à tout moment.</span>
+    </a>
   </div>
 
   <footer>Powered by <a href="https://iroh.computer" target="_blank">iroh</a> · <a href="https://github.com/undecaf/zbar-wasm" target="_blank">zbar-wasm</a></footer>
+
+  <script>
+    // ── Internationalization (i18n) ──────────────────────────────────────────────
+    const TRANSLATIONS = {
+      fr: {
+        title: 'Barcode Keyboard',
+        desc: 'Lecteur de codes-barres sans fil — l\'appareil photo de votre téléphone transmet les scans à votre PC via une connexion directe de pair à pair. Sans serveur, sans appairage.',
+        step1Label: 'Étape 1 — Sur PC',
+        step1Title: 'Récepteur PC',
+        step1Desc: 'Affiche un QR code. Scannez-le avec votre téléphone pour vous connecter.',
+        step2Label: 'Étape 2 — Sur Téléphone',
+        step2Title: 'Scanner connecté',
+        step2Desc: 'Scannez le QR code affiché sur le PC pour ouvrir le scanner connecté.',
+        step3Label: 'Mode autonome',
+        step3Title: 'Scanner Local (Hors-ligne)',
+        step3Desc: 'Scannez et stockez vos codes-barres directement sur votre téléphone. Copiez ou partagez la liste à tout moment.'
+      },
+      en: {
+        title: 'Barcode Keyboard',
+        desc: 'Wireless barcode scanner — phone camera sends scans to your PC over a direct peer-to-peer connection. No server, no pairing.',
+        step1Label: 'Step 1 — Open on PC',
+        step1Title: 'PC Receiver',
+        step1Desc: 'Shows a QR code. Scan it with your phone to connect.',
+        step2Label: 'Step 2 — On your phone',
+        step2Title: 'Phone Scanner',
+        step2Desc: 'Scan the QR code shown by the PC receiver — it opens the scanner with the correct connection already set up.',
+        step3Label: 'Standalone Mode',
+        step3Title: 'Local Scanner (Offline)',
+        step3Desc: 'Scan and store barcodes directly on your phone. Copy or share the list at any time.'
+      }
+    }
+
+    const lang = (navigator.language || navigator.userLanguage || 'en').startsWith('fr') ? 'fr' : 'en'
+    const t = TRANSLATIONS[lang]
+
+    function applyI18n() {
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.dataset.i18n
+        if (t[key]) {
+          el.textContent = t[key]
+        }
+      })
+      
+      // Update document title
+      if (t.title) {
+        document.title = t.title
+      }
+    }
+
+    applyI18n()
+  </script>
 </body>
 </html>

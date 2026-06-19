@@ -89,26 +89,247 @@
     #status-dot.send { background: #2563eb; }
     #last-code { font-size: 22px; font-weight: 800; color: #4ade80; word-break: break-all; }
     #last-meta { font-size: 11px; color: #475569; }
+
+    /* ── History Modal & Button ────────────────────────────────────────── */
+    #history-modal {
+      position: absolute; inset: 0; background: rgba(15, 23, 42, 0.98);
+      display: flex; flex-direction: column; z-index: 100;
+      transition: opacity 0.2s ease, visibility 0.2s;
+    }
+    #history-modal.hidden {
+      opacity: 0; pointer-events: none; visibility: hidden;
+    }
+    .modal-header {
+      padding: 16px; border-bottom: 1px solid #1e293b;
+      display: flex; justify-content: space-between; align-items: center;
+      background: #0f172a;
+    }
+    .modal-header h3 { font-size: 16px; font-weight: 600; color: #f1f5f9; }
+    .btn-close {
+      background: none; border: none; color: #94a3b8; font-size: 28px;
+      cursor: pointer; padding: 4px 12px; line-height: 1;
+    }
+    .modal-body {
+      flex: 1; overflow-y: auto; padding: 16px;
+    }
+    .modal-body.hidden {
+      display: none !important;
+    }
+    #history-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .history-item {
+      background: #1e293b; border: 1px solid #334155; padding: 12px;
+      border-radius: 6px; display: flex; justify-content: space-between; align-items: center;
+      gap: 10px;
+    }
+    .history-code { font-size: 16px; font-weight: 700; color: #4ade80; word-break: break-all; }
+    .history-meta { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+    .btn-delete-item {
+      background: none; border: none; color: #ef4444; font-size: 22px; cursor: pointer; padding: 4px 10px;
+      line-height: 1;
+    }
+    .modal-footer {
+      padding: 16px; border-top: 1px solid #1e293b;
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+      background: #0f172a;
+    }
+    .btn {
+      padding: 12px 8px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .btn-danger { background: #3b0712; color: #fca5a5; border: 1px solid #991b1b; }
+    .btn-danger:active { background: #4c0519; }
+    .btn-primary { background: #1e1b4b; color: #c7d2fe; border: 1px solid #3730a3; }
+    .btn-primary:active { background: #312e81; }
+    .btn-success { background: #064e3b; color: #a7f3d0; border: 1px solid #065f46; }
+    .btn-success:active { background: #065f46; }
+
+    @media (hover: hover) {
+      .btn-danger:hover { background: #4c0519; }
+      .btn-primary:hover { background: #312e81; }
+      .btn-success:hover { background: #065f46; }
+    }
+
+    /* Button in the bar */
+    #bar {
+      background: #0f172a; border-top: 1px solid #1e293b;
+      padding: 12px 18px; display: flex; align-items: center;
+      gap: 12px; min-height: 72px; flex-shrink: 0;
+    }
+    #bar-info {
+      display: grid;
+      grid-template-columns: 10px 1fr; grid-template-rows: auto auto;
+      gap: 2px 10px; align-items: center; flex: 1; min-width: 0;
+    }
+    #history-btn {
+      background: #1e293b; border: 1px solid #334155; color: #f1f5f9;
+      padding: 8px 12px; border-radius: 6px; font-size: 13px; font-weight: 600;
+      cursor: pointer; display: flex; align-items: center; gap: 6px; height: 38px;
+      flex-shrink: 0;
+    }
+    #history-btn:hover { background: #334155; }
+    #history-badge {
+      background: #ef4444; color: white; border-radius: 10px;
+      padding: 1px 6px; font-size: 10px; font-weight: bold;
+    }
+
+    /* ── Tabs inside Modal ─────────────────────────────────────────── */
+    .modal-tabs {
+      display: flex; gap: 8px; flex: 1; margin-right: 16px;
+    }
+    .tab-btn {
+      background: none; border: none; color: #64748b; font-size: 15px; font-weight: 600;
+      padding: 6px 12px; cursor: pointer; border-bottom: 2px solid transparent;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .tab-btn.active {
+      color: #4ade80; border-bottom-color: #4ade80;
+    }
+    
+    /* ── Settings Form ─────────────────────────────────────────────── */
+    .settings-form {
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .settings-group {
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .group-label {
+      font-size: 12px; font-weight: 700; color: #94a3b8; text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .form-input, .form-select {
+      background: #0f172a; border: 1px solid #334155; border-radius: 6px;
+      color: #f1f5f9; padding: 10px 12px; font-size: 14px; outline: none;
+      width: 100%; transition: border-color 0.2s;
+    }
+    .form-input:focus, .form-select:focus {
+      border-color: #4ade80;
+    }
+    .dedup-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    }
+    
+    /* Formats check list */
+    .formats-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+      background: #0f172a; border: 1px solid #334155; border-radius: 6px;
+      padding: 12px; max-height: 180px; overflow-y: auto;
+    }
+    .formats-grid label {
+      display: flex; align-items: center; gap: 8px; font-size: 13px;
+      color: #cbd5e1; cursor: pointer; user-select: none;
+    }
+    .formats-grid input[type="checkbox"] {
+      accent-color: #4ade80; width: 16px; height: 16px;
+    }
   </style>
 </head>
 <body>
 
 <div id="topbar">
   <div id="iroh-dot"></div>
-  <span id="iroh-status">Loading iroh…</span>
+  <span id="iroh-status" data-i18n="startingIroh">Loading iroh…</span>
 </div>
 
 <div id="wrap">
   <video id="video" autoplay playsinline muted></video>
   <canvas id="overlay"></canvas>
   <div id="viewfinder"><div id="vf-b"></div><div id="scan-line"></div></div>
-  <div id="hint">Align barcode within the frame</div>
+  <div id="hint" data-i18n="alignBarcode">Align barcode within the frame</div>
 </div>
 
 <div id="bar">
-  <div id="status-dot"></div>
-  <div id="last-code">–</div>
-  <div id="last-meta">Starting…</div>
+  <div id="bar-info">
+    <div id="status-dot"></div>
+    <div id="last-code">–</div>
+    <div id="last-meta" data-i18n="starting">Starting…</div>
+  </div>
+  <button id="history-btn">
+    <span data-i18n="historyBtn">📋 History</span> <span id="history-badge" style="display: none;">0</span>
+  </button>
+</div>
+
+<!-- ── History Modal ────────────────────────────────────────────────── -->
+<div id="history-modal" class="hidden">
+  <div class="modal-header">
+    <div class="modal-tabs">
+      <button id="tab-history-btn" class="tab-btn active">
+        <span data-i18n="tabScans">📜 Scans</span> (<span id="history-count">0</span>)
+      </button>
+      <button id="tab-settings-btn" class="tab-btn" data-i18n="tabSettings">⚙️ Settings</button>
+    </div>
+    <button id="close-history" class="btn-close">&times;</button>
+  </div>
+  
+  <!-- Tab: History -->
+  <div id="tab-history-content" class="modal-body">
+    <ul id="history-list">
+      <!-- items will be inserted here -->
+    </ul>
+  </div>
+  
+  <!-- Tab: Settings -->
+  <div id="tab-settings-content" class="modal-body hidden">
+    <div class="settings-form">
+      
+      <div class="settings-group">
+        <label class="group-label" data-i18n="labelFormats">Barcode Formats</label>
+        <div class="formats-grid" id="cfg-fmt-grid">
+          <!-- checkboxes will be inserted here -->
+        </div>
+      </div>
+      
+      <div class="settings-group">
+        <label class="group-label" for="cfg-prefix" data-i18n="labelPrefix">Prefix</label>
+        <input type="text" id="cfg-prefix" class="form-input" data-i18n-placeholder="placeholderPrefix" placeholder="e.g. ART-">
+      </div>
+      
+      <div class="settings-group">
+        <label class="group-label" for="cfg-transform" data-i18n="labelTransform">Transformation</label>
+        <select id="cfg-transform" class="form-select">
+          <option value="none" data-i18n="optNone">None</option>
+          <option value="upper" data-i18n="optUpper">Uppercase</option>
+          <option value="lower" data-i18n="optLower">Lowercase</option>
+          <option value="trim" data-i18n="optTrim">Trim</option>
+        </select>
+      </div>
+      
+      <div class="settings-group">
+        <label class="group-label" for="cfg-ignore-pattern" data-i18n="labelIgnore">Ignore (Regex Pattern)</label>
+        <input type="text" id="cfg-ignore-pattern" class="form-input" data-i18n-placeholder="placeholderIgnore" placeholder="e.g. ^TEST">
+      </div>
+      
+      <div class="settings-group">
+        <label class="group-label" data-i18n="labelDedup">Deduplication</label>
+        <div class="dedup-row">
+          <select id="cfg-dedup-mode" class="form-select">
+            <option value="consecutive" data-i18n="optConsecutive">Consecutive</option>
+            <option value="any" data-i18n="optAny">All duplicates</option>
+            <option value="off" data-i18n="optOff">Disabled</option>
+          </select>
+          <select id="cfg-dedup-secs" class="form-select">
+            <option value="0" data-i18n="optImmediate">Immediate</option>
+            <option value="2">2 s</option>
+            <option value="5">5 s</option>
+            <option value="10">10 s</option>
+            <option value="30">30 s</option>
+            <option value="60">60 s</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="settings-group" style="margin-top: 12px;">
+        <button id="cfg-reset-btn" class="btn btn-danger" style="width: 100%; background: transparent; border: 1px solid #ef4444; color: #ef4444;" data-i18n="btnReset">Reset to Defaults</button>
+      </div>
+      
+    </div>
+  </div>
+  
+  <div class="modal-footer" id="modal-history-footer">
+    <button id="clear-history" class="btn btn-danger" data-i18n="btnClear">🗑️ Clear All</button>
+    <button id="copy-history" class="btn btn-primary" data-i18n="btnCopy">📋 Copy All</button>
+    <button id="share-history" class="btn btn-success" data-i18n="btnShare">📤 Share</button>
+  </div>
 </div>
 
 <script type="module">
@@ -127,27 +348,417 @@ const irohDot    = document.getElementById('iroh-dot')
 const irohStatus = document.getElementById('iroh-status')
 const wrap       = document.getElementById('wrap')
 
-// ── URL params ───────────────────────────────────────────────────────────────
+// History & Settings DOM elements
+const historyBtn     = document.getElementById('history-btn')
+const historyBadge   = document.getElementById('history-badge')
+const historyModal   = document.getElementById('history-modal')
+const closeHistory   = document.getElementById('close-history')
+const historyList    = document.getElementById('history-list')
+const historyCount   = document.getElementById('history-count')
+const clearHistory   = document.getElementById('clear-history')
+const copyHistory    = document.getElementById('copy-history')
+const shareHistory   = document.getElementById('share-history')
+
+const tabHistoryBtn   = document.getElementById('tab-history-btn')
+const tabSettingsBtn  = document.getElementById('tab-settings-btn')
+const tabHistoryCont  = document.getElementById('tab-history-content')
+const tabSettingsCont = document.getElementById('tab-settings-content')
+const modalFooter     = document.getElementById('modal-history-footer')
+
+// Settings Form DOM elements
+const dedupSecsEl = document.getElementById('cfg-dedup-secs')
+const dedupModeEl = document.getElementById('cfg-dedup-mode')
+const prefixEl    = document.getElementById('cfg-prefix')
+const transformEl = document.getElementById('cfg-transform')
+const ignorePat   = document.getElementById('cfg-ignore-pattern')
+const cfgFmtGrid  = document.getElementById('cfg-fmt-grid')
+
+// ── Internationalization (i18n) ──────────────────────────────────────────────
+const TRANSLATIONS = {
+  fr: {
+    starting: 'Initialisation…',
+    startingIroh: 'Démarrage d\'iroh…',
+    loadingWasm: 'Chargement de WASM…',
+    ready: 'Prêt',
+    localMode: 'Mode Local (100% hors-ligne)',
+    historyBtn: '📋 Historique',
+    tabScans: '📜 Scans',
+    tabSettings: '⚙️ Réglages',
+    labelFormats: 'Formats de codes-barres',
+    labelPrefix: 'Préfixe',
+    placeholderPrefix: 'Ex: ART-',
+    labelTransform: 'Transformation',
+    optNone: 'Aucune',
+    optUpper: 'Majuscules',
+    optLower: 'Minuscules',
+    optTrim: 'Nettoyer (Trim)',
+    labelIgnore: 'Ignorer (Expression régulière)',
+    placeholderIgnore: 'Ex: ^TEST',
+    labelDedup: 'Déduplication',
+    optConsecutive: 'Consécutifs',
+    optAny: 'Tous les doublons',
+    optOff: 'Désactivée',
+    optImmediate: 'Immédiat',
+    btnClear: '🗑️ Tout effacer',
+    btnCopy: '📋 Copier tout',
+    btnShare: '📤 Partager',
+    btnReset: '🔄 Réinitialiser',
+    confirmReset: 'Voulez-vous vraiment restaurer les réglages par défaut ?',
+    noBarcodes: 'Aucun code-barres enregistré',
+    deleteTitle: 'Supprimer',
+    confirmClear: 'Voulez-vous vraiment effacer tout l\'historique ?',
+    copied: 'Copié !',
+    copyError: 'Erreur lors de la copie : ',
+    shareTitle: 'Codes-barres scannés',
+    shareError: 'Erreur lors du partage : ',
+    sharePrompt: 'Saisissez un titre pour cette liste de codes-barres (optionnel) :',
+    shareFallback: 'Le partage natif n\'est pas supporté par ce navigateur. Les codes ont été copiés dans le presse-papiers !',
+    sending: 'Envoi…',
+    sentToPc: 'Envoyé au PC',
+    failedToSend: 'Échec de l\'envoi au PC',
+    recordedLocally: 'Enregistré localement',
+    sendingToPc: 'Envoi au PC…',
+    pointCamera: 'Pointez la caméra vers un code-barres',
+    cameraError: 'Erreur de caméra : ',
+    resumingCamera: 'Reprise de la caméra…',
+    alignBarcode: 'Alignez le code-barres dans le cadre',
+  },
+  en: {
+    starting: 'Starting…',
+    startingIroh: 'Loading iroh…',
+    loadingWasm: 'Loading WASM…',
+    ready: 'Ready',
+    localMode: 'Local Mode (100% Offline)',
+    historyBtn: '📋 History',
+    tabScans: '📜 Scans',
+    tabSettings: '⚙️ Settings',
+    labelFormats: 'Barcode Formats',
+    labelPrefix: 'Prefix',
+    placeholderPrefix: 'e.g. ART-',
+    labelTransform: 'Transformation',
+    optNone: 'None',
+    optUpper: 'Uppercase',
+    optLower: 'Lowercase',
+    optTrim: 'Trim',
+    labelIgnore: 'Ignore (Regex Pattern)',
+    placeholderIgnore: 'e.g. ^TEST',
+    labelDedup: 'Deduplication',
+    optConsecutive: 'Consecutive',
+    optAny: 'All duplicates',
+    optOff: 'Disabled',
+    optImmediate: 'Immediate',
+    btnClear: '🗑️ Clear All',
+    btnCopy: '📋 Copy All',
+    btnShare: '📤 Share',
+    btnReset: '🔄 Reset to Defaults',
+    confirmReset: 'Are you sure you want to restore default settings?',
+    noBarcodes: 'No barcodes recorded',
+    deleteTitle: 'Delete',
+    confirmClear: 'Are you sure you want to clear the entire history?',
+    copied: 'Copied!',
+    copyError: 'Error copying to clipboard: ',
+    shareTitle: 'Scanned Barcodes',
+    shareError: 'Error sharing: ',
+    sharePrompt: 'Enter a title for this barcode list (optional):',
+    shareFallback: 'Native sharing is not supported by this browser. The codes have been copied to the clipboard!',
+    sending: 'Sending…',
+    sentToPc: 'Sent to PC',
+    failedToSend: 'Failed to send to PC',
+    recordedLocally: 'Recorded locally',
+    sendingToPc: 'Sending to PC…',
+    pointCamera: 'Point camera at a barcode',
+    cameraError: 'Camera error: ',
+    resumingCamera: 'Resuming camera…',
+    alignBarcode: 'Align barcode within the frame',
+  }
+}
+
+const lang = (navigator.language || navigator.userLanguage || 'en').startsWith('fr') ? 'fr' : 'en'
+const t = TRANSLATIONS[lang]
+
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.dataset.i18n
+    if (t[key]) {
+      el.textContent = t[key]
+    }
+  })
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const key = el.dataset.i18nPlaceholder
+    if (t[key]) {
+      el.placeholder = t[key]
+    }
+  })
+}
+
+// Apply on load
+applyI18n()
+
+// ── URL params & Local Mode ──────────────────────────────────────────────────
 const pcEndpoint = new URLSearchParams(location.search).get('endpoint')
-if (!pcEndpoint) {
-  irohStatus.textContent = 'Error: missing ?endpoint= in URL'
-  irohDot.className = 'error'
+const localMode = !pcEndpoint
+
+// Only allow settings configuration in Local Mode (connected mode is configured by receiver)
+if (!localMode) {
+  tabSettingsBtn.style.display = 'none'
 }
 
 // ── iroh ─────────────────────────────────────────────────────────────────────
-irohStatus.textContent = 'Loading WASM…'
-await init()
-irohStatus.textContent = 'Starting iroh node…'
-
 let node = null
-try {
-  node = await EchoNode.spawn()
+
+if (!localMode) {
+  irohStatus.textContent = t.loadingWasm
+  try {
+    await init()
+    irohStatus.textContent = t.startingIroh
+    node = await EchoNode.spawn()
+    irohDot.className = 'ready'
+    irohStatus.textContent = t.ready
+  } catch (err) {
+    irohDot.className = 'error'
+    irohStatus.textContent = 'iroh error: ' + err.message
+  }
+} else {
   irohDot.className = 'ready'
-  irohStatus.textContent = pcEndpoint ? 'Ready' : 'No endpoint in URL'
-} catch (err) {
-  irohDot.className = 'error'
-  irohStatus.textContent = 'iroh error: ' + err.message
+  irohDot.style.background = '#3b82f6' // Nice blue dot for local-only mode
+  irohStatus.textContent = t.localMode
 }
+
+// ── Config (localStorage) ────────────────────────────────────────────────────
+const ALL_FORMATS = [
+  ['ean13', 'EAN-13'], ['ean8', 'EAN-8'],    ['upca', 'UPC-A'],    ['upce', 'UPC-E'],
+  ['code39', 'Code 39'], ['code128', 'Code 128'], ['qrcode', 'QR Code'], ['pdf417', 'PDF417'],
+  ['itf', 'ITF'], ['codabar', 'Codabar'], ['code93', 'Code 93'], ['databar', 'DataBar'],
+]
+const DEFAULT_FORMATS = ['ean13', 'ean8', 'upca', 'code39', 'code128']
+
+const DEFAULTS = {
+  formats: DEFAULT_FORMATS,
+  dedup_secs: 5,
+  dedup_mode: 'consecutive',
+  prefix: '',
+  transform: 'none',
+  ignore_pattern: '',
+}
+
+function loadCfg() {
+  try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem('scanner-cfg') || '{}') } }
+  catch { return { ...DEFAULTS } }
+}
+function saveCfg() {
+  localStorage.setItem('scanner-cfg', JSON.stringify(cfg))
+}
+
+let cfg = loadCfg()
+
+// ── History Helpers ──────────────────────────────────────────────────────────
+function getHistory() {
+  try {
+    return JSON.parse(localStorage.getItem('scanned_barcodes')) || []
+  } catch {
+    return []
+  }
+}
+
+function escapeHtml(str) {
+  if (!str) return ''
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;')
+}
+
+function updateHistoryUI() {
+  const list = getHistory()
+  historyCount.textContent = list.length
+  
+  if (list.length > 0) {
+    historyBadge.textContent = list.length
+    historyBadge.style.display = 'inline-block'
+  } else {
+    historyBadge.style.display = 'none'
+  }
+
+  if (list.length === 0) {
+    historyList.innerHTML = `<li style="text-align: center; color: #64748b; padding: 24px; font-size: 14px;">${t.noBarcodes}</li>`
+    return
+  }
+
+  historyList.innerHTML = list.map((item, index) => {
+    const time = new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    return `
+      <li class="history-item">
+        <div>
+          <div class="history-code">${escapeHtml(item.code)}</div>
+          <div class="history-meta">${escapeHtml(item.type)} · ${time}</div>
+        </div>
+        <button class="btn-delete-item" data-index="${index}" title="${t.deleteTitle}">&times;</button>
+      </li>
+    `
+  }).join('')
+}
+
+function saveBarcodeToHistory(code, type) {
+  const list = getHistory()
+  list.unshift({
+    code,
+    type: fmtType(type),
+    timestamp: Date.now()
+  })
+  localStorage.setItem('scanned_barcodes', JSON.stringify(list))
+  updateHistoryUI()
+}
+
+// Initialize history badge/UI
+updateHistoryUI()
+
+// ── Tab Switching ────────────────────────────────────────────────────────────
+tabHistoryBtn.addEventListener('click', () => {
+  tabHistoryBtn.classList.add('active')
+  tabSettingsBtn.classList.remove('active')
+  tabHistoryCont.classList.remove('hidden')
+  tabSettingsCont.classList.add('hidden')
+  modalFooter.style.display = 'grid'
+})
+
+tabSettingsBtn.addEventListener('click', () => {
+  tabSettingsBtn.classList.add('active')
+  tabHistoryBtn.classList.remove('active')
+  tabSettingsCont.classList.remove('hidden')
+  tabHistoryCont.classList.add('hidden')
+  modalFooter.style.display = 'none'
+})
+
+// ── Bind Settings Form Inputs ────────────────────────────────────────────────
+const resetBtn = document.getElementById('cfg-reset-btn')
+
+dedupSecsEl.value = cfg.dedup_secs
+dedupModeEl.value = cfg.dedup_mode
+prefixEl.value    = cfg.prefix
+transformEl.value = cfg.transform
+ignorePat.value   = cfg.ignore_pattern
+
+dedupSecsEl.addEventListener('change', () => { cfg.dedup_secs = Number(dedupSecsEl.value); saveCfg() })
+dedupModeEl.addEventListener('change', () => { cfg.dedup_mode = dedupModeEl.value; saveCfg() })
+prefixEl.addEventListener('input',    () => { cfg.prefix = prefixEl.value; saveCfg() })
+transformEl.addEventListener('change',() => { cfg.transform = transformEl.value; saveCfg() })
+ignorePat.addEventListener('input',   () => { cfg.ignore_pattern = ignorePat.value; saveCfg() })
+
+resetBtn.addEventListener('click', () => {
+  if (confirm(t.confirmReset)) {
+    localStorage.removeItem('scanner-cfg')
+    cfg = loadCfg()
+    
+    // Update inputs
+    dedupSecsEl.value = cfg.dedup_secs
+    dedupModeEl.value = cfg.dedup_mode
+    prefixEl.value    = cfg.prefix
+    transformEl.value = cfg.transform
+    ignorePat.value   = cfg.ignore_pattern
+    
+    // Update checkboxes
+    cfgFmtGrid.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.checked = cfg.formats.includes(cb.dataset.fmt)
+    })
+    
+    updateScannerFormats()
+  }
+})
+
+// Render format checkboxes
+for (const [key, label] of ALL_FORMATS) {
+  const lbl = document.createElement('label')
+  const cb  = document.createElement('input')
+  cb.type = 'checkbox'
+  cb.checked = cfg.formats.includes(key)
+  cb.dataset.fmt = key
+  lbl.append(cb, ' ' + label)
+  cfgFmtGrid.append(lbl)
+  cb.addEventListener('change', () => {
+    cfg.formats = [...cfgFmtGrid.querySelectorAll('input')].filter(c => c.checked).map(c => c.dataset.fmt)
+    saveCfg()
+    updateScannerFormats()
+  })
+}
+
+// ── History Events ───────────────────────────────────────────────────────────
+historyBtn.addEventListener('click', () => {
+  updateHistoryUI()
+  historyModal.classList.remove('hidden')
+})
+
+closeHistory.addEventListener('click', () => {
+  historyModal.classList.add('hidden')
+})
+
+historyList.addEventListener('click', (e) => {
+  const deleteBtn = e.target.closest('.btn-delete-item')
+  if (!deleteBtn) return
+  const index = parseInt(deleteBtn.getAttribute('data-index'), 10)
+  const list = getHistory()
+  if (isNaN(index) || index < 0 || index >= list.length) return
+  
+  list.splice(index, 1)
+  localStorage.setItem('scanned_barcodes', JSON.stringify(list))
+  updateHistoryUI()
+})
+
+clearHistory.addEventListener('click', () => {
+  const list = getHistory()
+  if (list.length === 0) return
+  if (confirm(t.confirmClear)) {
+    localStorage.removeItem('scanned_barcodes')
+    updateHistoryUI()
+  }
+})
+
+copyHistory.addEventListener('click', async () => {
+  const list = getHistory()
+  if (list.length === 0) return
+  const text = list.map(s => s.code).join('\n')
+  try {
+    await navigator.clipboard.writeText(text)
+    const oldHtml = copyHistory.innerHTML
+    copyHistory.innerHTML = '✓ ' + t.copied
+    copyHistory.style.background = '#1e3a8a'
+    copyHistory.style.borderColor = '#3b82f6'
+    setTimeout(() => {
+      copyHistory.innerHTML = oldHtml
+      copyHistory.style.background = ''
+      copyHistory.style.borderColor = ''
+    }, 1500)
+  } catch (err) {
+    alert(t.copyError + err.message)
+  }
+})
+
+shareHistory.addEventListener('click', async () => {
+  const list = getHistory()
+  if (list.length === 0) return
+  
+  const title = prompt(t.sharePrompt)
+  if (title === null) return // User cancelled
+  
+  const codesText = list.map(s => s.code).join('\n')
+  const text = title.trim() ? `${title.trim()}\n\n${codesText}` : codesText
+  
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: title.trim() || t.shareTitle,
+        text: text
+      })
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        alert(t.shareError + err.message)
+      }
+    }
+  } else {
+    try {
+      await navigator.clipboard.writeText(text)
+      alert(t.shareFallback)
+    } catch (err) {
+      alert('Error: ' + err.message)
+    }
+  }
+})
 
 // ── zbar ─────────────────────────────────────────────────────────────────────
 const ZBAR_FORMAT_MAP = {
@@ -164,18 +775,24 @@ const ZBAR_FORMAT_MAP = {
   code93:  'ZBAR_CODE93',
   databar: 'ZBAR_DATABAR',
 }
-const DEFAULT_FORMATS = ['ean13', 'ean8', 'upca', 'code39', 'code128']
-const formatsParam = new URLSearchParams(location.search).get('formats')
-const activeFormats = formatsParam ? formatsParam.split(',') : DEFAULT_FORMATS
 
 const scanner = await zbarWasm.getDefaultScanner()
-scanner.setConfig(zbarWasm.ZBarSymbolType.ZBAR_NONE, zbarWasm.ZBarConfigType.ZBAR_CFG_ENABLE, 0)
-for (const fmt of activeFormats) {
-  const sym = ZBAR_FORMAT_MAP[fmt]
-  if (sym && zbarWasm.ZBarSymbolType[sym] !== undefined) {
-    scanner.setConfig(zbarWasm.ZBarSymbolType[sym], zbarWasm.ZBarConfigType.ZBAR_CFG_ENABLE, 1)
+
+function updateScannerFormats() {
+  if (!scanner) return
+  const formatsParam = new URLSearchParams(location.search).get('formats')
+  const activeFormats = formatsParam ? formatsParam.split(',') : cfg.formats
+
+  scanner.setConfig(zbarWasm.ZBarSymbolType.ZBAR_NONE, zbarWasm.ZBarConfigType.ZBAR_CFG_ENABLE, 0)
+  for (const fmt of activeFormats) {
+    const sym = ZBAR_FORMAT_MAP[fmt]
+    if (sym && zbarWasm.ZBarSymbolType[sym] !== undefined) {
+      scanner.setConfig(zbarWasm.ZBarSymbolType[sym], zbarWasm.ZBarConfigType.ZBAR_CFG_ENABLE, 1)
+    }
   }
 }
+
+updateScannerFormats()
 
 const TYPE_LABELS = {
   ZBAR_EAN13: 'EAN-13', ZBAR_EAN8: 'EAN-8', ZBAR_UPCA: 'UPC-A', ZBAR_UPCE: 'UPC-E',
@@ -197,9 +814,9 @@ async function startCamera() {
     const stream = await navigator.mediaDevices.getUserMedia(CAM_CONSTRAINTS)
     video.srcObject = stream
     await video.play()
-    setStatus('ok', 'Point camera at a barcode')
+    setStatus('ok', t.pointCamera)
   } catch (e) {
-    setStatus('warn', 'Camera error: ' + e.message)
+    setStatus('warn', t.cameraError + e.message)
   }
 }
 
@@ -213,7 +830,7 @@ function isStreamDead() {
 document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState !== 'visible') return
   if (isStreamDead()) {
-    setStatus('warn', 'Resuming camera…')
+    setStatus('warn', t.resumingCamera)
     await startCamera()
   }
 })
@@ -223,7 +840,7 @@ video.addEventListener('pause', async () => {
     await video.play()
   } catch {
     if (isStreamDead()) {
-      setStatus('warn', 'Resuming camera…')
+      setStatus('warn', t.resumingCamera)
       await startCamera()
     }
   }
@@ -312,8 +929,10 @@ async function sendBarcode(code) {
       if (event.type === 'closed') break
     }
     irohDot.className = 'ready'; irohStatus.textContent = '✓ ' + code
+    setStatus('ok', 'Sent to PC')
   } catch (err) {
     irohDot.className = 'error'; irohStatus.textContent = 'Error: ' + err.message
+    setStatus('warn', 'Failed to send to PC')
     setTimeout(() => { irohDot.className = 'ready'; irohStatus.textContent = 'Ready' }, 3000)
   }
   sending = false
@@ -321,6 +940,40 @@ async function sendBarcode(code) {
 
 // ── Scan loop ─────────────────────────────────────────────────────────────────
 let prevCode = '', prevAt = 0, scanning = false
+const dedupSeen = new Set()
+
+function applyTransform(code) {
+  switch (cfg.transform) {
+    case 'upper': return code.toUpperCase()
+    case 'lower': return code.toLowerCase()
+    case 'trim':  return code.trim()
+    default:      return code
+  }
+}
+
+function matchesIgnore(code) {
+  if (!cfg.ignore_pattern) return false
+  try { return new RegExp(cfg.ignore_pattern).test(code) } catch { return false }
+}
+
+function isDup(code) {
+  if (cfg.dedup_mode === 'off') return false
+  const now = Date.now()
+  if (cfg.dedup_mode === 'consecutive') {
+    return code === prevCode && now - prevAt < cfg.dedup_secs * 1000
+  }
+  if (cfg.dedup_mode === 'any') {
+    return dedupSeen.has(code)
+  }
+  return false
+}
+
+function recordSeen(code) {
+  prevCode = code
+  prevAt = Date.now()
+  dedupSeen.add(code)
+}
+
 async function tick() {
   if (!scanning && video.readyState === HTMLMediaElement.HAVE_ENOUGH_DATA) {
     scanning = true
@@ -350,15 +1003,41 @@ async function tick() {
         }
         const sym = symbols.reduce((best, s) => symArea(s) > symArea(best) ? s : best)
         {
-          const code = sym.decode(), now = Date.now()
-          if (!(code === prevCode && now - prevAt < 5000)) {
-            prevCode = code; prevAt = now
+          const rawCode = sym.decode()
+          if (localMode) {
+            // Local mode: apply local prefix, transform, and advanced deduplication/ignore regex
+            if (!isDup(rawCode) && !matchesIgnore(rawCode)) {
+              recordSeen(rawCode)
 
-            lastCode.textContent = code
-            lastMeta.textContent = `${fmtType(sym.typeName)}  ·  ${new Date().toLocaleTimeString()}`
-            setStatus('send', 'Sending…')
-            if (tapped) navigator.vibrate?.(55)
-            sendBarcode(code)
+              const finalCode = cfg.prefix + applyTransform(rawCode)
+
+              lastCode.textContent = finalCode
+              lastMeta.textContent = `${fmtType(sym.typeName)}  ·  ${new Date().toLocaleTimeString()}`
+              
+              // Save to localStorage history
+              saveBarcodeToHistory(finalCode, sym.typeName)
+              
+              if (tapped) navigator.vibrate?.(55)
+              setStatus('ok', t.recordedLocally)
+            }
+          } else {
+            // Connected mode: settings are configured on the PC receiver.
+            // Use a standard 5-second consecutive deduplication to prevent connection spam,
+            // and send the RAW code to the PC so the receiver processes it exactly once.
+            const now = Date.now()
+            if (!(rawCode === prevCode && now - prevAt < 5000)) {
+              prevCode = rawCode; prevAt = now
+
+              lastCode.textContent = rawCode
+              lastMeta.textContent = `${fmtType(sym.typeName)}  ·  ${new Date().toLocaleTimeString()}`
+              
+              // Save raw Copy to local backup history so no data is ever lost
+              saveBarcodeToHistory(rawCode, sym.typeName)
+              
+              if (tapped) navigator.vibrate?.(55)
+              setStatus('send', t.sendingToPc)
+              sendBarcode(rawCode)
+            }
           }
         }
       } else {
