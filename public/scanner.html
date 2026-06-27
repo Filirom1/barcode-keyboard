@@ -319,6 +319,10 @@
       </div>
 
       <div class="settings-group" style="margin-top: 12px;">
+        <button id="cfg-share-url-btn" class="btn btn-success" style="width: 100%;" data-i18n="btnShareConfig">📤 Share Scanner Link</button>
+      </div>
+
+      <div class="settings-group" style="margin-top: 12px;">
         <button id="cfg-reset-btn" class="btn btn-danger" style="width: 100%; background: transparent; border: 1px solid #ef4444; color: #ef4444;" data-i18n="btnReset">Reset to Defaults</button>
       </div>
       
@@ -372,6 +376,7 @@ const prefixEl    = document.getElementById('cfg-prefix')
 const transformEl = document.getElementById('cfg-transform')
 const ignorePat   = document.getElementById('cfg-ignore-pattern')
 const cfgFmtGrid  = document.getElementById('cfg-fmt-grid')
+const shareUrlBtn = document.getElementById('cfg-share-url-btn')
 
 // ── Internationalization (i18n) ──────────────────────────────────────────────
 const TRANSLATIONS = {
@@ -403,6 +408,9 @@ const TRANSLATIONS = {
     btnCopy: '📋 Copier tout',
     btnShare: '📤 Partager',
     btnReset: '🔄 Réinitialiser',
+    btnShareConfig: '📤 Partager le scanner',
+    configShared: 'Lien du scanner configuré copié !',
+    shareAppMsg: 'Voici l’application scanner configurée avec mes formats !',
     confirmReset: 'Voulez-vous vraiment restaurer les réglages par défaut ?',
     noBarcodes: 'Aucun code-barres enregistré',
     deleteTitle: 'Supprimer',
@@ -451,6 +459,9 @@ const TRANSLATIONS = {
     btnCopy: '📋 Copy All',
     btnShare: '📤 Share',
     btnReset: '🔄 Reset to Defaults',
+    btnShareConfig: '📤 Share Scanner Link',
+    configShared: 'Configured scanner link copied!',
+    shareAppMsg: 'Here is the scanner app configured with my formats!',
     confirmReset: 'Are you sure you want to restore default settings?',
     noBarcodes: 'No barcodes recorded',
     deleteTitle: 'Delete',
@@ -550,6 +561,22 @@ function saveCfg() {
 }
 
 let cfg = loadCfg()
+
+// Override config formats if specified in the URL query string (only in Local Mode)
+const urlParamsOnLoad = new URLSearchParams(location.search)
+const formatsParamOnLoad = urlParamsOnLoad.get('formats')
+if (localMode && formatsParamOnLoad) {
+  const urlFormats = formatsParamOnLoad.split(',').filter(f => ALL_FORMATS.some(([key]) => key === f))
+  if (urlFormats.length > 0) {
+    cfg.formats = urlFormats
+    saveCfg()
+  }
+} else if (localMode && cfg.formats && cfg.formats.length > 0) {
+  // If in local mode and no formats param in URL, populate the address bar
+  const url = new URL(location.href)
+  url.searchParams.set('formats', cfg.formats.join(','))
+  history.replaceState(null, '', url.href)
+}
 
 // ── History Helpers ──────────────────────────────────────────────────────────
 function getHistory() {
@@ -658,7 +685,41 @@ resetBtn.addEventListener('click', () => {
       cb.checked = cfg.formats.includes(cb.dataset.fmt)
     })
     
+    if (localMode) {
+      const url = new URL(location.href)
+      if (cfg.formats.length > 0) {
+        url.searchParams.set('formats', cfg.formats.join(','))
+      } else {
+        url.searchParams.delete('formats')
+      }
+      history.replaceState(null, '', url.href)
+    }
+
     updateScannerFormats()
+  }
+})
+
+shareUrlBtn.addEventListener('click', async () => {
+  const shareUrl = location.href
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: document.title,
+        text: t.shareAppMsg || 'Here is the scanner app configured with my formats!',
+        url: shareUrl
+      })
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        alert(t.shareError + err.message)
+      }
+    }
+  } else {
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      alert(t.configShared || 'Configured scanner link copied!')
+    } catch (err) {
+      alert('Error: ' + err.message)
+    }
   }
 })
 
@@ -674,6 +735,17 @@ for (const [key, label] of ALL_FORMATS) {
   cb.addEventListener('change', () => {
     cfg.formats = [...cfgFmtGrid.querySelectorAll('input')].filter(c => c.checked).map(c => c.dataset.fmt)
     saveCfg()
+
+    if (localMode) {
+      const url = new URL(location.href)
+      if (cfg.formats.length > 0) {
+        url.searchParams.set('formats', cfg.formats.join(','))
+      } else {
+        url.searchParams.delete('formats')
+      }
+      history.replaceState(null, '', url.href)
+    }
+
     updateScannerFormats()
   })
 }
