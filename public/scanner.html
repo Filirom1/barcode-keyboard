@@ -459,6 +459,7 @@ const TRANSLATIONS = {
     btnCancel: 'Annuler',
     manualType: 'Manuel',
     confirmClear: 'Voulez-vous vraiment effacer tout l\'historique ?',
+    confirmClearAfterShare: 'Partage réussi ! Voulez-vous effacer l’historique des codes scannés ?',
     copied: 'Copié !',
     copyError: 'Erreur lors de la copie : ',
     shareTitle: 'Codes-barres scannés',
@@ -517,6 +518,7 @@ const TRANSLATIONS = {
     btnCancel: 'Cancel',
     manualType: 'Manual',
     confirmClear: 'Are you sure you want to clear the entire history?',
+    confirmClearAfterShare: 'Sharing successful! Do you want to clear the scanned codes history?',
     copied: 'Copied!',
     copyError: 'Error copying to clipboard: ',
     shareTitle: 'Scanned Barcodes',
@@ -925,12 +927,14 @@ shareHistory.addEventListener('click', async () => {
   const codesText = list.map(s => s.code).join('\n')
   const text = `${shareTitleText}\n\n${codesText}`
   
+  let shared = false
   if (navigator.share) {
     try {
       await navigator.share({
         title: shareTitleText,
         text: text
       })
+      shared = true
     } catch (err) {
       if (err.name !== 'AbortError') {
         alert(t.shareError + err.message)
@@ -940,9 +944,20 @@ shareHistory.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(text)
       alert(t.shareFallback)
+      shared = true
     } catch (err) {
       alert('Error: ' + err.message)
     }
+  }
+
+  if (shared) {
+    // Small timeout to allow native share dialogues/clipboard alerts to settle
+    setTimeout(() => {
+      if (confirm(t.confirmClearAfterShare || 'Do you want to clear the history?')) {
+        localStorage.removeItem('scanned_barcodes')
+        updateHistoryUI()
+      }
+    }, 300)
   }
 })
 
