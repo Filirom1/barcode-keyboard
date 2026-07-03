@@ -99,6 +99,27 @@
     #history-modal.hidden, #manual-modal.hidden {
       opacity: 0; pointer-events: none; visibility: hidden;
     }
+    
+    /* ── Custom Confirm modal ─────────────────────────────────────────── */
+    #confirm-modal {
+      position: absolute; inset: 0; background: rgba(0, 0, 0, 0.8);
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+      z-index: 200; transition: opacity 0.2s ease, visibility 0.2s;
+    }
+    #confirm-modal.hidden {
+      opacity: 0; pointer-events: none; visibility: hidden;
+    }
+    .confirm-content {
+      background: #1e293b; border: 1px solid #334155; width: 100%; max-width: 320px;
+      border-radius: 8px; padding: 24px; display: flex; flex-direction: column; gap: 20px;
+      box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5);
+    }
+    #confirm-message {
+      font-size: 14px; color: #f1f5f9; text-align: center; line-height: 1.5; font-weight: 500;
+    }
+    .confirm-buttons {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    }
     .modal-header {
       padding: 16px; border-bottom: 1px solid #1e293b;
       display: flex; justify-content: space-between; align-items: center;
@@ -343,6 +364,17 @@
   </div>
 </div>
 
+<!-- ── Custom Confirm Modal ─────────────────────────────────────────── -->
+<div id="confirm-modal" class="hidden">
+  <div class="confirm-content">
+    <div id="confirm-message"></div>
+    <div class="confirm-buttons">
+      <button id="confirm-no-btn" class="btn btn-danger"></button>
+      <button id="confirm-yes-btn" class="btn btn-success"></button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Manual Entry Modal ────────────────────────────────────────────── -->
 <div id="manual-modal" class="hidden">
   <div class="modal-header">
@@ -366,6 +398,53 @@
 <script type="module">
 import * as zbarWasm from 'https://cdn.jsdelivr.net/npm/@undecaf/zbar-wasm/dist/main.js'
 import init, { EchoNode } from "./wasm/barcode_keyboard.js";
+
+// ── Custom Async Confirm Dialog Helper ───────────────────────────────
+function showConfirm(message, yesLabel, noLabel) {
+  return new Promise((resolve) => {
+    confirmMessage.textContent = message
+    confirmYesBtn.textContent = yesLabel || t.btnValidate || 'OK'
+    confirmNoBtn.textContent = noLabel || t.btnCancel || 'Cancel'
+    confirmNoBtn.style.display = 'block'
+    confirmModal.querySelector('.confirm-buttons').style.gridTemplateColumns = '1fr 1fr'
+    
+    const onYes = () => {
+      cleanup()
+      resolve(true)
+    }
+    const onNo = () => {
+      cleanup()
+      resolve(false)
+    }
+    const cleanup = () => {
+      confirmYesBtn.removeEventListener('click', onYes)
+      confirmNoBtn.removeEventListener('click', onNo)
+      confirmModal.classList.add('hidden')
+    }
+    
+    confirmYesBtn.addEventListener('click', onYes)
+    confirmNoBtn.addEventListener('click', onNo)
+    confirmModal.classList.remove('hidden')
+  })
+}
+
+function showAlert(message, btnLabel) {
+  return new Promise((resolve) => {
+    confirmMessage.textContent = message
+    confirmYesBtn.textContent = btnLabel || 'OK'
+    confirmNoBtn.style.display = 'none'
+    confirmModal.querySelector('.confirm-buttons').style.gridTemplateColumns = '1fr'
+    
+    const onYes = () => {
+      confirmYesBtn.removeEventListener('click', onYes)
+      confirmModal.classList.add('hidden')
+      resolve()
+    }
+    
+    confirmYesBtn.addEventListener('click', onYes)
+    confirmModal.classList.remove('hidden')
+  })
+}
 
 // ── DOM ──────────────────────────────────────────────────────────────────────
 const video      = document.getElementById('video')
@@ -397,6 +476,12 @@ const tabSettingsBtn  = document.getElementById('tab-settings-btn')
 const tabHistoryCont  = document.getElementById('tab-history-content')
 const tabSettingsCont = document.getElementById('tab-settings-content')
 const modalFooter     = document.getElementById('modal-history-footer')
+
+// Custom Confirm DOM elements
+const confirmModal    = document.getElementById('confirm-modal')
+const confirmMessage  = document.getElementById('confirm-message')
+const confirmNoBtn    = document.getElementById('confirm-no-btn')
+const confirmYesBtn   = document.getElementById('confirm-yes-btn')
 
 // Manual entry DOM elements
 const manualBtn       = document.getElementById('manual-btn')
@@ -727,8 +812,9 @@ prefixEl.addEventListener('input',    () => { cfg.prefix = prefixEl.value; saveC
 transformEl.addEventListener('change',() => { cfg.transform = transformEl.value; saveCfg() })
 ignorePat.addEventListener('input',   () => { cfg.ignore_pattern = ignorePat.value; saveCfg() })
 
-resetBtn.addEventListener('click', () => {
-  if (confirm(t.confirmReset)) {
+resetBtn.addEventListener('click', async () => {
+  const ok = await showConfirm(t.confirmReset)
+  if (ok) {
     localStorage.removeItem('scanner-cfg')
     cfg = loadCfg()
     
@@ -769,15 +855,15 @@ shareUrlBtn.addEventListener('click', async () => {
       })
     } catch (err) {
       if (err.name !== 'AbortError') {
-        alert(t.shareError + err.message)
+        await showAlert(t.shareError + err.message)
       }
     }
   } else {
     try {
       await navigator.clipboard.writeText(shareUrl)
-      alert(t.configShared || 'Configured scanner link copied!')
+      await showAlert(t.configShared || 'Configured scanner link copied!')
     } catch (err) {
-      alert('Error: ' + err.message)
+      await showAlert('Error: ' + err.message)
     }
   }
 })
@@ -880,10 +966,11 @@ historyList.addEventListener('click', (e) => {
   updateHistoryUI()
 })
 
-clearHistory.addEventListener('click', () => {
+clearHistory.addEventListener('click', async () => {
   const list = getHistory()
   if (list.length === 0) return
-  if (confirm(t.confirmClear)) {
+  const ok = await showConfirm(t.confirmClear)
+  if (ok) {
     localStorage.removeItem('scanned_barcodes')
     updateHistoryUI()
   }
@@ -905,7 +992,7 @@ copyHistory.addEventListener('click', async () => {
       copyHistory.style.borderColor = ''
     }, 1500)
   } catch (err) {
-    alert(t.copyError + err.message)
+    await showAlert(t.copyError + err.message)
   }
 })
 
@@ -937,23 +1024,24 @@ shareHistory.addEventListener('click', async () => {
       shared = true
     } catch (err) {
       if (err.name !== 'AbortError') {
-        alert(t.shareError + err.message)
+        await showAlert(t.shareError + err.message)
       }
     }
   } else {
     try {
       await navigator.clipboard.writeText(text)
-      alert(t.shareFallback)
+      await showAlert(t.shareFallback)
       shared = true
     } catch (err) {
-      alert('Error: ' + err.message)
+      await showAlert('Error: ' + err.message)
     }
   }
 
   if (shared) {
     // Small timeout to allow native share dialogues/clipboard alerts to settle
-    setTimeout(() => {
-      if (confirm(t.confirmClearAfterShare || 'Do you want to clear the history?')) {
+    setTimeout(async () => {
+      const ok = await showConfirm(t.confirmClearAfterShare || 'Do you want to clear the history?')
+      if (ok) {
         localStorage.removeItem('scanned_barcodes')
         updateHistoryUI()
       }
