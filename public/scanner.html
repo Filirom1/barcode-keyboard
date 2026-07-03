@@ -91,12 +91,12 @@
     #last-meta { font-size: 11px; color: #475569; }
 
     /* ── History Modal & Button ────────────────────────────────────────── */
-    #history-modal {
+    #history-modal, #manual-modal {
       position: absolute; inset: 0; background: rgba(15, 23, 42, 0.98);
       display: flex; flex-direction: column; z-index: 100;
       transition: opacity 0.2s ease, visibility 0.2s;
     }
-    #history-modal.hidden {
+    #history-modal.hidden, #manual-modal.hidden {
       opacity: 0; pointer-events: none; visibility: hidden;
     }
     .modal-header {
@@ -161,13 +161,13 @@
       grid-template-columns: 10px 1fr; grid-template-rows: auto auto;
       gap: 2px 10px; align-items: center; flex: 1; min-width: 0;
     }
-    #history-btn {
+    #history-btn, #manual-btn {
       background: #1e293b; border: 1px solid #334155; color: #f1f5f9;
       padding: 8px 12px; border-radius: 6px; font-size: 13px; font-weight: 600;
       cursor: pointer; display: flex; align-items: center; gap: 6px; height: 38px;
       flex-shrink: 0;
     }
-    #history-btn:hover { background: #334155; }
+    #history-btn:hover, #manual-btn:hover { background: #334155; }
     #history-badge {
       background: #ef4444; color: white; border-radius: 10px;
       padding: 1px 6px; font-size: 10px; font-weight: bold;
@@ -244,6 +244,9 @@
     <div id="last-code">–</div>
     <div id="last-meta" data-i18n="starting">Starting…</div>
   </div>
+  <button id="manual-btn" style="display: none;">
+    <span data-i18n="manualBtn">⌨️ Saisir</span>
+  </button>
   <button id="history-btn">
     <span data-i18n="historyBtn">📋 History</span> <span id="history-badge" style="display: none;">0</span>
   </button>
@@ -263,6 +266,10 @@
   
   <!-- Tab: History -->
   <div id="tab-history-content" class="modal-body">
+    <div id="title-input-container" style="margin-bottom: 12px; display: none;">
+      <label class="group-label" for="history-title-input" data-i18n="sharePrompt" style="margin-bottom: 6px; display: block; font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em;">Saisissez un titre pour cette liste de codes-barres (optionnel) :</label>
+      <input type="text" id="history-title-input" class="form-input" data-i18n-placeholder="shareTitle" placeholder="Codes-barres scannés" style="margin-bottom: 16px;">
+    </div>
     <ul id="history-list">
       <!-- items will be inserted here -->
     </ul>
@@ -336,6 +343,26 @@
   </div>
 </div>
 
+<!-- ── Manual Entry Modal ────────────────────────────────────────────── -->
+<div id="manual-modal" class="hidden">
+  <div class="modal-header">
+    <h3 data-i18n="manualTitle">⌨️ Manual Entry</h3>
+    <button id="close-manual" class="btn-close">&times;</button>
+  </div>
+  <div class="modal-body">
+    <div class="settings-form">
+      <div class="settings-group">
+        <label class="group-label" for="manual-code-input" data-i18n="manualLabel">Barcode</label>
+        <input type="text" id="manual-code-input" class="form-input" data-i18n-placeholder="placeholderManual" placeholder="Enter barcode…">
+      </div>
+    </div>
+  </div>
+  <div class="modal-footer" style="grid-template-columns: 1fr 1fr;">
+    <button id="cancel-manual" class="btn btn-danger" data-i18n="btnCancel">Cancel</button>
+    <button id="submit-manual" class="btn btn-success" data-i18n="btnValidate">Validate</button>
+  </div>
+</div>
+
 <script type="module">
 import * as zbarWasm from 'https://cdn.jsdelivr.net/npm/@undecaf/zbar-wasm/dist/main.js'
 import init, { EchoNode } from "./wasm/barcode_keyboard.js";
@@ -353,21 +380,31 @@ const irohStatus = document.getElementById('iroh-status')
 const wrap       = document.getElementById('wrap')
 
 // History & Settings DOM elements
-const historyBtn     = document.getElementById('history-btn')
-const historyBadge   = document.getElementById('history-badge')
-const historyModal   = document.getElementById('history-modal')
-const closeHistory   = document.getElementById('close-history')
-const historyList    = document.getElementById('history-list')
-const historyCount   = document.getElementById('history-count')
-const clearHistory   = document.getElementById('clear-history')
-const copyHistory    = document.getElementById('copy-history')
-const shareHistory   = document.getElementById('share-history')
+const historyBtn          = document.getElementById('history-btn')
+const historyBadge        = document.getElementById('history-badge')
+const historyModal        = document.getElementById('history-modal')
+const closeHistory        = document.getElementById('close-history')
+const historyList         = document.getElementById('history-list')
+const historyCount        = document.getElementById('history-count')
+const clearHistory        = document.getElementById('clear-history')
+const copyHistory         = document.getElementById('copy-history')
+const shareHistory        = document.getElementById('share-history')
+const titleInputContainer = document.getElementById('title-input-container')
+const historyTitleInput   = document.getElementById('history-title-input')
 
 const tabHistoryBtn   = document.getElementById('tab-history-btn')
 const tabSettingsBtn  = document.getElementById('tab-settings-btn')
 const tabHistoryCont  = document.getElementById('tab-history-content')
 const tabSettingsCont = document.getElementById('tab-settings-content')
 const modalFooter     = document.getElementById('modal-history-footer')
+
+// Manual entry DOM elements
+const manualBtn       = document.getElementById('manual-btn')
+const manualModal     = document.getElementById('manual-modal')
+const closeManual     = document.getElementById('close-manual')
+const manualCodeInput = document.getElementById('manual-code-input')
+const cancelManual    = document.getElementById('cancel-manual')
+const submitManual    = document.getElementById('submit-manual')
 
 // Settings Form DOM elements
 const dedupSecsEl = document.getElementById('cfg-dedup-secs')
@@ -414,6 +451,13 @@ const TRANSLATIONS = {
     confirmReset: 'Voulez-vous vraiment restaurer les réglages par défaut ?',
     noBarcodes: 'Aucun code-barres enregistré',
     deleteTitle: 'Supprimer',
+    manualBtn: '⌨️ Saisir',
+    manualTitle: '⌨️ Saisie Manuel',
+    manualLabel: 'Code-barres',
+    placeholderManual: 'Saisissez le code-barres…',
+    btnValidate: 'Valider',
+    btnCancel: 'Annuler',
+    manualType: 'Manuel',
     confirmClear: 'Voulez-vous vraiment effacer tout l\'historique ?',
     copied: 'Copié !',
     copyError: 'Erreur lors de la copie : ',
@@ -465,6 +509,13 @@ const TRANSLATIONS = {
     confirmReset: 'Are you sure you want to restore default settings?',
     noBarcodes: 'No barcodes recorded',
     deleteTitle: 'Delete',
+    manualBtn: '⌨️ Enter',
+    manualTitle: '⌨️ Manual Entry',
+    manualLabel: 'Barcode',
+    placeholderManual: 'Enter barcode…',
+    btnValidate: 'Validate',
+    btnCancel: 'Cancel',
+    manualType: 'Manual',
     confirmClear: 'Are you sure you want to clear the entire history?',
     copied: 'Copied!',
     copyError: 'Error copying to clipboard: ',
@@ -512,27 +563,31 @@ const localMode = !pcEndpoint
 // Only allow settings configuration in Local Mode (connected mode is configured by receiver)
 if (!localMode) {
   tabSettingsBtn.style.display = 'none'
+} else {
+  manualBtn.style.display = 'flex'
 }
 
 // ── iroh ─────────────────────────────────────────────────────────────────────
 let node = null
 
-if (!localMode) {
-  irohStatus.textContent = t.loadingWasm
-  try {
-    await init()
-    irohStatus.textContent = t.startingIroh
-    node = await EchoNode.spawn()
+async function initIroh() {
+  if (!localMode) {
+    irohStatus.textContent = t.loadingWasm
+    try {
+      await init()
+      irohStatus.textContent = t.startingIroh
+      node = await EchoNode.spawn()
+      irohDot.className = 'ready'
+      irohStatus.textContent = t.ready
+    } catch (err) {
+      irohDot.className = 'error'
+      irohStatus.textContent = 'iroh error: ' + err.message
+    }
+  } else {
     irohDot.className = 'ready'
-    irohStatus.textContent = t.ready
-  } catch (err) {
-    irohDot.className = 'error'
-    irohStatus.textContent = 'iroh error: ' + err.message
+    irohDot.style.background = '#3b82f6' // Nice blue dot for local-only mode
+    irohStatus.textContent = t.localMode
   }
-} else {
-  irohDot.className = 'ready'
-  irohDot.style.background = '#3b82f6' // Nice blue dot for local-only mode
-  irohStatus.textContent = t.localMode
 }
 
 // ── Config (localStorage) ────────────────────────────────────────────────────
@@ -599,8 +654,10 @@ function updateHistoryUI() {
   if (list.length > 0) {
     historyBadge.textContent = list.length
     historyBadge.style.display = 'inline-block'
+    titleInputContainer.style.display = 'block'
   } else {
     historyBadge.style.display = 'none'
+    titleInputContainer.style.display = 'none'
   }
 
   if (list.length === 0) {
@@ -750,6 +807,55 @@ for (const [key, label] of ALL_FORMATS) {
   })
 }
 
+// ── Manual Entry Events ──────────────────────────────────────────────────────
+manualBtn.addEventListener('click', () => {
+  manualModal.classList.remove('hidden')
+  manualCodeInput.value = ''
+  manualCodeInput.focus()
+})
+
+closeManual.addEventListener('click', () => {
+  manualModal.classList.add('hidden')
+})
+
+cancelManual.addEventListener('click', () => {
+  manualModal.classList.add('hidden')
+})
+
+function submitManualBarcode() {
+  const rawCode = manualCodeInput.value.trim()
+  if (!rawCode) return
+
+  // Apply local prefix and transformation
+  const finalCode = cfg.prefix + applyTransform(rawCode)
+
+  // Update last-code display
+  lastCode.textContent = finalCode
+  lastMeta.textContent = `${t.manualType || 'Manual'}  ·  ${new Date().toLocaleTimeString()}`
+
+  // Save to history list
+  saveBarcodeToHistory(finalCode, 'ZBAR_MANUAL')
+
+  // Record as seen for deduplication
+  recordSeen(rawCode)
+
+  if (tapped) navigator.vibrate?.(55)
+
+  // Hide the modal and clear input
+  manualModal.classList.add('hidden')
+  manualCodeInput.value = ''
+  
+  setStatus('ok', t.recordedLocally)
+}
+
+submitManual.addEventListener('click', submitManualBarcode)
+
+manualCodeInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    submitManualBarcode()
+  }
+})
+
 // ── History Events ───────────────────────────────────────────────────────────
 historyBtn.addEventListener('click', () => {
   updateHistoryUI()
@@ -805,16 +911,24 @@ shareHistory.addEventListener('click', async () => {
   const list = getHistory()
   if (list.length === 0) return
   
-  const title = prompt(t.sharePrompt)
-  if (title === null) return // User cancelled
+  const customTitle = historyTitleInput.value.trim()
+  const codeCount = list.length
   
+  let shareTitleText = ''
+  if (customTitle) {
+    shareTitleText = customTitle
+  } else {
+    const dateStr = new Date().toLocaleString([], { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    shareTitleText = `${t.shareTitle} (${codeCount}) - ${dateStr}`
+  }
+
   const codesText = list.map(s => s.code).join('\n')
-  const text = title.trim() ? `${title.trim()}\n\n${codesText}` : codesText
+  const text = `${shareTitleText}\n\n${codesText}`
   
   if (navigator.share) {
     try {
       await navigator.share({
-        title: title.trim() || t.shareTitle,
+        title: shareTitleText,
         text: text
       })
     } catch (err) {
@@ -848,7 +962,7 @@ const ZBAR_FORMAT_MAP = {
   databar: 'ZBAR_DATABAR',
 }
 
-const scanner = await zbarWasm.getDefaultScanner()
+let scanner = null
 
 function updateScannerFormats() {
   if (!scanner) return
@@ -864,13 +978,12 @@ function updateScannerFormats() {
   }
 }
 
-updateScannerFormats()
-
 const TYPE_LABELS = {
   ZBAR_EAN13: 'EAN-13', ZBAR_EAN8: 'EAN-8', ZBAR_UPCA: 'UPC-A', ZBAR_UPCE: 'UPC-E',
   ZBAR_CODE39: 'Code 39', ZBAR_CODE128: 'Code 128', ZBAR_QRCODE: 'QR Code',
   ZBAR_PDF417: 'PDF417', ZBAR_I25: 'ITF', ZBAR_CODABAR: 'Codabar',
   ZBAR_CODE93: 'Code 93', ZBAR_DATABAR: 'DataBar',
+  ZBAR_MANUAL: t.manualType || 'Manual',
 }
 const fmtType = t => TYPE_LABELS[t] ?? t.replace('ZBAR_', '')
 
@@ -892,7 +1005,24 @@ async function startCamera() {
   }
 }
 
-await startCamera()
+// ── Global initialization ───────────────────────────────────────────────────
+async function initApp() {
+  // 1. Start Iroh and network connections in parallel
+  await initIroh()
+
+  // 2. Load zbar-wasm scanner
+  try {
+    scanner = await zbarWasm.getDefaultScanner()
+    updateScannerFormats()
+  } catch (err) {
+    console.error('Failed to load zbar scanner:', err)
+  }
+
+  // 3. Start the camera feed
+  await startCamera()
+}
+
+initApp().catch(err => console.error('Initialization failed:', err))
 
 function isStreamDead() {
   const tracks = video.srcObject?.getVideoTracks() ?? []
@@ -1047,6 +1177,10 @@ function recordSeen(code) {
 }
 
 async function tick() {
+  if (!scanner) {
+    requestAnimationFrame(tick)
+    return
+  }
   if (!scanning && video.readyState === HTMLMediaElement.HAVE_ENOUGH_DATA) {
     scanning = true
     zbarCanvas.width = video.videoWidth; zbarCanvas.height = video.videoHeight
